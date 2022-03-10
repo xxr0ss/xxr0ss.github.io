@@ -131,6 +131,25 @@
 
 <article class="post-entry"> 
   <header class="entry-header">
+    <h2>Python逆向初体验
+    </h2>
+  </header>
+  <section class="entry-content">
+    <p>Cython篇  Python逆向主要难度还是在pyd（或者说so）上，以下为Cython生成的可供python导入的模块的逆向手段。
+Cython也能产生exe，使用—embed命令行参数，然后正常添加好include目录和libs目录和依赖就可以直接编译了。
+开发的角度 项目创建和构建 在Windows上，直接通过setup.py的处理方法，编译出来的pyd没有符号文件产生，而且似乎也没有办法通过设置命令行，设置某些参数之类的方式来生成符号文件。我目前探索比较方便的方案是：
+创建VS的动态链接库工程，项目属性里做如下工作：
+ （可选）可以在pre event里调用cython生成.c   需要在项目依赖的include目录和lib目录，用到的lib依赖，三个地方都加上python的部分   指定生成和本机python环境一样的pyd，比如都是x64的 修改生成目标的dll后缀设置为pyd  然后项目文件的管理：
+ 不要把.py放项目的Source Files（源文件）filter下，不然会被当成项目源码干扰编译过程，可以创建一个单独的filter来放.py文件，比如我现在的管理方式：  逆向的角度  尽可能恢复符号，借用别的有符号的pyd，用bindiff进行恢复 导出一部分结构体  __Pyx_AddTraceback对逆向有较大辅助作用
+ 确认下还有哪些符号有利于逆向分析  代码逆向定位 都在slots里，所以是挨着的，确定了一个就能确定另一个。函数实现也是挨着的。
+ __pyx_pymod_create __pyx_pymod_exec_modulename  static PyModuleDef_Slot __pyx_moduledef_slots[] = {  {Py_mod_create, (void*)},  {Py_mod_exec, (void*)__pyx_pymod_exec_demo},  {0, NULL} };   // 在python的moduleobject.h里有定义 typedef struct PyModuleDef_Slot{  int slot;  void *value; } PyModuleDef_Slot; pyx和py的区别 其实就算不使用cython的语法特性，同样的代码放在py和pyx里，cython编译出来的结果并不相同。...</p>
+  </section>
+  <footer class="entry-footer"><span title='2021-08-22 08:57:42 +0800 CST'>August 22, 2021</span></footer>
+  <a class="entry-link" aria-label="post link to Python逆向初体验" href="https://xxr0ss.github.io/post/reverse_python/"></a>
+</article>
+
+<article class="post-entry"> 
+  <header class="entry-header">
     <h2>手把手Qiling Framework上手教程
     </h2>
   </header>

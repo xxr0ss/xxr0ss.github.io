@@ -274,7 +274,7 @@ __int64 challenge4()
 
 所以看汇编：
 
-![](hands_on_qiling_framework.assets/image/image.png "")
+![](/hands_on_qiling_framework/image/image.png "")
 
 可以看到有个不成立的循环，正常执行不会进入。相当于是：
 
@@ -371,7 +371,7 @@ def challenge5(ql: Qiling):
 
 流程很清晰，只要我们修改死循环部分，参数就会乖乖被赋值1
 
-![](hands_on_qiling_framework.assets/image/image_1.png "")
+![](/hands_on_qiling_framework/image/image_1.png "")
 
 ### 脚本
 
