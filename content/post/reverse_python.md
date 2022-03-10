@@ -98,7 +98,7 @@ typedef struct PyModuleDef_Slot{
 
 
 
-### `__pyx_pymod_exec_`modulename``中的区别
+### `__pyx_pymod_exec_modulename`中的区别
 
 #### 自定义函数的区别
 
