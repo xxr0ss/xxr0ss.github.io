@@ -1,0 +1,10 @@
+baseURL = 'https://xxr0ss.github.io/'
+languageCode = 'zh-cn'
+title = 'XX の Blog'
+theme = 'PaperMod'
+publishDir = "docs"
+
+[params]
+    [params.homeInfoParams]
+        title = "Hi there"
+        Content = "大三 | 信息安全 | 逆向"
