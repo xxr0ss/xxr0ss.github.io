@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>手把手Qiling Framework上手教程 | XX の Blog</title>
+<meta name="keywords" content="" />
+<meta name="description" content="简介 QilingLab来源： Shielder - QilingLab – Release，是一个包含十几个小挑战的程序，用于快速上手Qiling框架的主要功能。Qiling框架就不多做介绍了。
+两个不同架构但是内容一样，任选其一做即可。aarch64版本已有Joan Sivion做的Qiling Labs - JoanSivion Security Blog，我这里用x86-64做一遍，当作对Joan Sivion的补充和中文翻译。
+题目样本 qilinglab-x86_64
+qilinglab-aarch64
+开始挑战！ qilinglab出发点只是训练qiling框架的使用，所以没有啥逆向强度，符号也没有去，我们直接用IDA打开看即可。
+看下题目 运行看到题目列表：
+Challenge 1: Store 1337 at pointer 0x1337. Challenge 2: Make the &#39;uname&#39; syscall return the correct values. Challenge 3: Make &#39;/dev/urandom&#39; and &#39;getrandom&#39; &#34;collide&#34;. Challenge 4: Enter inside the &#34;forbidden&#34; loop. Challenge 5: Guess every call to rand(). Challenge 6: Avoid the infinite loop. Challenge 7: Don&#39;t waste time waiting for &#39;sleep&#39;.">
+<meta name="author" content="">
+<link rel="canonical" href="https://xxr0ss.github.io/post/hands_on_qiling_framework/" />
+<link crossorigin="anonymous" href="/assets/css/stylesheet.min.c88963fe2d79462000fd0fb1b3737783c32855d340583e4523343f8735c787f0.css" integrity="sha256-yIlj/i15RiAA/Q&#43;xs3N3g8MoVdNAWD5FIzQ/hzXHh/A=" rel="preload stylesheet" as="style">
+<script defer crossorigin="anonymous" src="/assets/js/highlight.min.4dcb3c4f38462f66c6b6137227726f5543cb934cca9788f041c087e374491df2.js" integrity="sha256-Tcs8TzhGL2bGthNyJ3JvVUPLk0zKl4jwQcCH43RJHfI="
+    onload="hljs.initHighlightingOnLoad();"></script>
+<link rel="icon" href="https://xxr0ss.github.io/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://xxr0ss.github.io/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://xxr0ss.github.io/favicon-32x32.png">
+<link rel="apple-touch-icon" href="https://xxr0ss.github.io/apple-touch-icon.png">
+<link rel="mask-icon" href="https://xxr0ss.github.io/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --hljs-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-track {
+                background: 0 0;
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-thumb {
+                border-color: var(--theme);
+            }
+        }
+
+    </style>
+</noscript><meta property="og:title" content="手把手Qiling Framework上手教程" />
+<meta property="og:description" content="简介 QilingLab来源： Shielder - QilingLab – Release，是一个包含十几个小挑战的程序，用于快速上手Qiling框架的主要功能。Qiling框架就不多做介绍了。
+两个不同架构但是内容一样，任选其一做即可。aarch64版本已有Joan Sivion做的Qiling Labs - JoanSivion Security Blog，我这里用x86-64做一遍，当作对Joan Sivion的补充和中文翻译。
+题目样本 qilinglab-x86_64
+qilinglab-aarch64
+开始挑战！ qilinglab出发点只是训练qiling框架的使用，所以没有啥逆向强度，符号也没有去，我们直接用IDA打开看即可。
+看下题目 运行看到题目列表：
+Challenge 1: Store 1337 at pointer 0x1337. Challenge 2: Make the &#39;uname&#39; syscall return the correct values. Challenge 3: Make &#39;/dev/urandom&#39; and &#39;getrandom&#39; &#34;collide&#34;. Challenge 4: Enter inside the &#34;forbidden&#34; loop. Challenge 5: Guess every call to rand(). Challenge 6: Avoid the infinite loop. Challenge 7: Don&#39;t waste time waiting for &#39;sleep&#39;." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://xxr0ss.github.io/post/hands_on_qiling_framework/" /><meta property="article:section" content="post" />
+<meta property="article:published_time" content="2021-08-19T02:03:42&#43;08:00" />
+<meta property="article:modified_time" content="2021-08-19T02:03:42&#43;08:00" />
+
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="手把手Qiling Framework上手教程"/>
+<meta name="twitter:description" content="简介 QilingLab来源： Shielder - QilingLab – Release，是一个包含十几个小挑战的程序，用于快速上手Qiling框架的主要功能。Qiling框架就不多做介绍了。
+两个不同架构但是内容一样，任选其一做即可。aarch64版本已有Joan Sivion做的Qiling Labs - JoanSivion Security Blog，我这里用x86-64做一遍，当作对Joan Sivion的补充和中文翻译。
+题目样本 qilinglab-x86_64
+qilinglab-aarch64
+开始挑战！ qilinglab出发点只是训练qiling框架的使用，所以没有啥逆向强度，符号也没有去，我们直接用IDA打开看即可。
+看下题目 运行看到题目列表：
+Challenge 1: Store 1337 at pointer 0x1337. Challenge 2: Make the &#39;uname&#39; syscall return the correct values. Challenge 3: Make &#39;/dev/urandom&#39; and &#39;getrandom&#39; &#34;collide&#34;. Challenge 4: Enter inside the &#34;forbidden&#34; loop. Challenge 5: Guess every call to rand(). Challenge 6: Avoid the infinite loop. Challenge 7: Don&#39;t waste time waiting for &#39;sleep&#39;."/>
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Posts",
+      "item": "https://xxr0ss.github.io/post/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "手把手Qiling Framework上手教程",
+      "item": "https://xxr0ss.github.io/post/hands_on_qiling_framework/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "手把手Qiling Framework上手教程",
+  "name": "手把手Qiling Framework上手教程",
+  "description": "简介 QilingLab来源： Shielder - QilingLab – Release，是一个包含十几个小挑战的程序，用于快速上手Qiling框架的主要功能。Qiling框架就不多做介绍了。\n两个不同架构但是内容一样，任选其一做即可。aarch64版本已有Joan Sivion做的Qiling Labs - JoanSivion Security Blog，我这里用x86-64做一遍，当作对Joan Sivion的补充和中文翻译。\n题目样本 qilinglab-x86_64\nqilinglab-aarch64\n开始挑战！ qilinglab出发点只是训练qiling框架的使用，所以没有啥逆向强度，符号也没有去，我们直接用IDA打开看即可。\n看下题目 运行看到题目列表：\nChallenge 1: Store 1337 at pointer 0x1337. Challenge 2: Make the \u0026#39;uname\u0026#39; syscall return the correct values. Challenge 3: Make \u0026#39;/dev/urandom\u0026#39; and \u0026#39;getrandom\u0026#39; \u0026#34;collide\u0026#34;. Challenge 4: Enter inside the \u0026#34;forbidden\u0026#34; loop. Challenge 5: Guess every call to rand(). Challenge 6: Avoid the infinite loop. Challenge 7: Don\u0026#39;t waste time waiting for \u0026#39;sleep\u0026#39;.",
+  "keywords": [
+    
+  ],
+  "articleBody": "简介 QilingLab来源： Shielder - QilingLab – Release，是一个包含十几个小挑战的程序，用于快速上手Qiling框架的主要功能。Qiling框架就不多做介绍了。\n两个不同架构但是内容一样，任选其一做即可。aarch64版本已有Joan Sivion做的Qiling Labs - JoanSivion Security Blog，我这里用x86-64做一遍，当作对Joan Sivion的补充和中文翻译。\n题目样本 qilinglab-x86_64\nqilinglab-aarch64\n开始挑战！ qilinglab出发点只是训练qiling框架的使用，所以没有啥逆向强度，符号也没有去，我们直接用IDA打开看即可。\n看下题目 运行看到题目列表：\nChallenge 1: Store 1337 at pointer 0x1337. Challenge 2: Make the 'uname' syscall return the correct values. Challenge 3: Make '/dev/urandom' and 'getrandom' \"collide\". Challenge 4: Enter inside the \"forbidden\" loop. Challenge 5: Guess every call to rand(). Challenge 6: Avoid the infinite loop. Challenge 7: Don't waste time waiting for 'sleep'. Challenge 8: Unpack the struct and write at the target address. Challenge 9: Fix some string operation to make the iMpOsSiBlE come true. Challenge 10: Fake the 'cmdline' line file to return the right content. Challenge 11: Bypass CPUID/MIDR_EL1 checks. IDA打开，可以看到main() → start()里就是一大堆调用challangeX(a)并对结果进行校验，我们的目的就是让传入的指针指向的位置能被正确赋值1。没有逆向难度所以不多做解释。\n直接运行的话，并不会输出每个Challenge的结果（SOLVED/UNSOLVED），甚至还会出现segment fault，这些都是正常现象，请放心食用，当你完成某些挑战后，自然就能看到更多的结果了。\n基本用法 我们需要用到rootfs里的东西，所以把qiling的GitHub仓库clone下来，里面rootfs是个submodule所以干脆整个用\ngit clone https://github.com/qilingframework/qiling.git --recursiv 克隆下来\n基本使用模板 from qiling import *  def challenge1(ql: Qiling):  pass  if __name__ == '__main__':  path = ['qilinglab-x86_64'] # 我们的目标  rootfs = \"./qiling/examples/rootfs/x8664_linux\" # 在你clone下来的仓库里  ql = Qiling(path, rootfs)  challenge1(ql) # 在ql.run()之前，做好我们的hook工作  ql.run() challenge 1: 操作内存 _BYTE *__fastcall challenge1(_BYTE *a1) {  _BYTE *result; // rax   result = (_BYTE *)MEMORY[0x1337];  if ( MEMORY[0x1337] == 1337 )  {  result = a1;  *a1 = 1;  }  return result; } 需要我们让内存0x1337上存放一个值为1337，我们其实并不能保证程序加载基地址，这里我们需要用\nql.mem.map(0x1000, 0x1000, info='[challenge]') 映射一块内存，需要注意的是，qiling底层就是用的Unicorn Engine，内存映射时，要4k对齐。\n综上，还是挺容易得出第一处解法。\n脚本 def challenge1(ql: Qiling):  ql.mem.map(0x1000, 0x1000, info='[challenge1]')  ql.mem.write(0x1337, ql.pack16(1337)) # pack16(value) == struct.pack('H', value) Tips 在ql.run()前加一句ql.verbose = 0方便看输出内容\nchallenge 2: 修改系统调用 让我们修改uname系统调用，让它返回正确的值。IDA看下“正确的值”指的是什么\nunsigned __int64 __fastcall challenge2(_BYTE *a1) {  unsigned int v2; // [rsp+10h] [rbp-1D0h]  int v3; // [rsp+14h] [rbp-1CCh]  int v4; // [rsp+18h] [rbp-1C8h]  int v5; // [rsp+1Ch] [rbp-1C4h]  struct utsname name; // [rsp+20h] [rbp-1C0h] BYREF  char s[10]; // [rsp+1A6h] [rbp-3Ah] BYREF  char v8[16]; // [rsp+1B0h] [rbp-30h] BYREF  unsigned __int64 v9; // [rsp+1C8h] [rbp-18h]   v9 = __readfsqword(0x28u);  if ( uname(\u0026name) )  {  perror(\"uname\");  }  else  {  strcpy(s, \"QilingOS\");  strcpy(v8, \"ChallengeStart\");  v2 = 0;  v3 = 0;  while ( v4  strlen(s) )  {  if ( name.sysname[v4] == s[v4] )  ++v2;  ++v4;  }  while ( v5  strlen(v8) )  {  if ( name.version[v5] == v8[v5] )  ++v3;  ++v5;  }  if ( v2 == strlen(s) \u0026\u0026 v3 == strlen(v8) \u0026\u0026 v2  5 )  *a1 = 1;  }  return __readfsqword(0x28u) ^ v9; } uname系统调用用来获取系统的一些信息，传入一个utsname结构体buffer让它填充。可以在看到utsname的定义（经过整理）：\nstruct utsname {  char sysname[65];  char nodename[65];  char release[65];  char version[65];  char machine[65];  char domainname[65]; }; 而Qiling提供了在系统调用返回时进行hook的功能。\n脚本 def hook_uname_on_exit(ql: Qiling, *args):  rdi = ql.reg.rdi  ql.mem.write(rdi, b'QilingOS\\x00')  ql.mem.write(rdi + 65 * 3, b'ChallengeStart\\x00')  def challenge2(ql: Qiling):  ql.set_syscall('uname', hook_uname_on_exit, QL_INTERCEPT.EXIT) challenge 3: 劫持文件系统\u0026系统调用 unsigned __int64 __fastcall challenge3(_BYTE *a1) {  int v2; // [rsp+10h] [rbp-60h]  int i; // [rsp+14h] [rbp-5Ch]  int fd; // [rsp+18h] [rbp-58h]  char v5; // [rsp+1Fh] [rbp-51h] BYREF  char buf[32]; // [rsp+20h] [rbp-50h] BYREF  char buf2[40]; // [rsp+40h] [rbp-30h] BYREF  unsigned __int64 v8; // [rsp+68h] [rbp-8h]   v8 = __readfsqword(0x28u);  fd = open(\"/dev/urandom\", 0);  read(fd, buf, 0x20uLL);  read(fd, \u0026v5, 1uLL);  close(fd);  getrandom((__int64)buf2, 32LL, 1LL);  v2 = 0;  for ( i = 0; i  31; ++i )  {  if ( buf[i] == buf2[i] \u0026\u0026 buf[i] != v5 )  ++v2;  }  if ( v2 == 32 )  *a1 = 1;  return __readfsqword(0x28u) ^ v8; } 可以看到需要我们解决两个问题：\n 直接读取/dev/urandom得到的随机数，和通过getrandom()得到的随机数要完全一样 还要有一个字节的随机数，和剩下的都不一样。  Qiling提供了QlFsMappedObject让我们能很方便地自定义文件系统，最少要实现close，剩下的可以看源码，根据需要自行去实现：read, write, fileno, lseek, fstat, ioctl, tell, dup, readline。\n脚本 class Fake_urandom(QlFsMappedObject):  def read(self, expected_len):  if expected_len == 1:  return b'\\x23' # casual single byte here  else:  return b'\\x00' * expected_len   def close(self):  return 0   def hook_getrandom(ql: Qiling, buf, buflen, flags, *args):  ql.mem.write(buf, b'\\x00' * buflen)  ql.os.set_syscall_return(0)   def challenge3(ql: Qiling):  ql.add_fs_mapper('/dev/urandom', Fake_urandom())  ql.set_syscall('getrandom', hook_getrandom) challenge 4: hook地址 在我的IDA上，F5看不到完整流程。\n__int64 challenge4() {  return 0LL; } 所以看汇编：\n可以看到有个不成立的循环，正常执行不会进入。相当于是：\nwhile (i  0) {  *a1 = 1;  i++; } return; 所以在比较前将终止条件改为1，这样可以执行一次，让函数参数赋值为1。\n脚本 hook_address里注册的回调在执行被hook地址处之前执行，然后才执行这个地址上的指令。所以我们hook在cmp这句。这样while里就是比较 i 了。\ndef enter_forbidden_loop_hook(ql: Qiling):  ql.reg.eax = 1  def challenge4(ql: Qiling):  \"\"\" 000055A3E4800E40 8B 45 F8 mov eax, [rbp+var_8] 000055A3E4800E43 39 45 FC cmp [rbp+var_4], eax 000055A3E4800E46 7C ED jl short loc_55A3E4800E35 \"\"\"  base = ql.mem.get_lib_base(ql.path)  hook_addr = base + 0xE43  ql.hook_address(enter_forbidden_loop_hook, hook_addr) challenge 5: hook外部函数 来看看我们的目标：\nunsigned __int64 __fastcall challenge5(_BYTE *a1) {  unsigned int v1; // eax  int i; // [rsp+18h] [rbp-48h]  int j; // [rsp+1Ch] [rbp-44h]  int v5[14]; // [rsp+20h] [rbp-40h]  unsigned __int64 v6; // [rsp+58h] [rbp-8h]   v6 = __readfsqword(0x28u);  v1 = time(0LL);  srand(v1);  for ( i = 0; i  4; ++i )  {  v5[i] = 0;  v5[i + 8] = rand();  }  for ( j = 0; j  4; ++j )  {  if ( v5[j] != v5[j + 8] )  {  *a1 = 0;  return __readfsqword(0x28u) ^ v6;  }  }  *a1 = 1;  return __readfsqword(0x28u) ^ v6; } 显然，只要让rand()每次都返回0是最简单的修改方法了。所以代码比较简单：\n脚本 def hook_rand(ql: Qiling):  ql.reg.rax = 0  def challenge5(ql: Qiling):  ql.set_api('rand', hook_rand) 看不到输出challenge5: SOLVED是正常的，因为卡在了challenge6，没有输出来信息。\nchallenge 6: 突破死循环 流程很清晰，只要我们修改死循环部分，参数就会乖乖被赋值1\n脚本 同理，要抢在比较之前修改al的值\ndef hook_while_true(ql: Qiling):  \"\"\" 0000564846E00F12 0F B6 45 FB movzx eax, [rbp+var_5] 0000564846E00F16 84 C0 test al, al 0000564846E00F18 75 F1 jnz short loc_564846E00F0B \"\"\"  ql.reg.rax = 0  def challenge6(ql: Qiling):  base = ql.mem.get_lib_base(ql.path)  ql.hook_address(hook_while_true, base + 0xF16) challenge 7: 不许睡了，快起来！——修改sleep() unsigned int __fastcall challenge7(_BYTE *a1) {  *a1 = 1;  return sleep(0xFFFFFFFF); } 可以很轻易想到n种办法：\n 修改sleep参数值，减少睡眠时间 自己实现apisleep()，直接返回 修改系统调用nanosleep()，直接返回，因为sleep()底层调用的nanosleep() 可以看一下 # man 3 sleep NOTES On Linux, sleep() is implemented via nanosleep(2). See the nanosleep(2) man page for a discussion of the clock used. ``  脚本 def modify_arg(ql: Qiling):  ql.reg.edi = 0  def i_slept_i_faked_it(ql: Qiling):  # 我睡了，我装的  return  def hook_nanosleep(ql: Qiling, *args, **kwargs):  # 注意参数列表  return  def challenge7(ql: Qiling):  # method 1  # ql.set_api('sleep', modify_arg, QL_INTERCEPT.ENTER)  # method 2  # ql.set_api('sleep', i_slept_i_faked_it)  # method 3  ql.set_syscall('nanosleep', hook_nanosleep) challenge 8: 解析结构体，往正确地址写入值 这里直接借用Joan Sivion整理的代码：\nvoid challenge8(char *check) {  random_struct *s;   s = (random_struct *)malloc(24);  s-some_string = (char *)malloc(0x1E);  s-magic = 0x3DFCD6EA00000539;  strcpy(s-field_0, \"Random data\");  s-check_addr = check; }  struct random_struct {  char *some_string;  __int64 magic;  char *check_addr; }; 方法有两种：\n  最后一句的时候，获取这个结构体地址，可以看一下最后部分的汇编：\n.text:0000564846E00FA9 48 8B 45 F8 mov rax, [rbp+stru] ; stru == -8 .text:0000564846E00FAD 48 8B 55 E8 mov rdx, [rbp+var_18] .text:0000564846E00FB1 48 89 50 10 mov [rax+10h], rdx .text:0000564846E00FB5 90 nop .text:0000564846E00FB6 C9 leave .text:0000564846E00FB7 C3 retn ``\n然后结构体偏移+0x16的地方就是保存了参数的位置。\n  使用qiling提供的机制，用ql.mem.search()搜索内存。看一下代码可以发现，这个结构体保存了一个魔数0x3DFCD6EA00000539，这正好是个特征方便我们去搜索这块内存。当然，还在第一个字段保存了一个指针指向一个固定的字符串，如果那个魔数在内存中出现多次，那显然我们还需要进一步获取信息确定是不是我们要找的那个结构体：保存了参数check的结构体。\n  脚本 def hook_struct(ql: Qiling):  \"\"\" 0000564846E00FA9 48 8B 45 F8 mov rax, [rbp+str] ; rbp - 8 0000564846E00FAD 48 8B 55 E8 mov rdx, [rbp+var_18] 0000564846E00FB1 48 89 50 10 mov [rax+10h], rdx 0000564846E00FB5 90 nop 0000564846E00FB6 C9 leave 0000564846E00FB7 C3 retn \"\"\"  heap_struct_addr = ql.unpack64(ql.mem.read(ql.reg.rbp - 8, 8))  heap_struct = ql.mem.read(heap_struct_addr, 24)  printHex(heap_struct)  _, _, check_addr = struct.unpack('QQQ', heap_struct)  ql.mem.write(check_addr, b'\\x01')  def search_mem_to_find_struct(ql: Qiling):  MAGIC = ql.pack64(0x3DFCD6EA00000539)  candidate_addrs = ql.mem.search(MAGIC)   for addr in candidate_addrs:  # 有可能有多个地址，所以通过其他特征进一步确认  stru_addr = addr - 8  stru = ql.mem.read(stru_addr, 24)  string_addr, _, check_addr = struct.unpack('QQQ', stru)  if ql.mem.string(string_addr) == 'Random data':  ql.mem.write(check_addr, b'\\x01')  break  def challenge8(ql: Qiling):  base = ql.mem.get_lib_base(ql.path)  # method 1  # ql.hook_address(hook_struct, base + 0xFB5)  # method 2  ql.hook_address(search_mem_to_find_struct, base + 0xFB5) challenge 9: 修改字符串函数 unsigned __int64 __fastcall challenge9(bool *a1) {  char *i; // [rsp+18h] [rbp-58h]  char dest[32]; // [rsp+20h] [rbp-50h] BYREF  char src[40]; // [rsp+40h] [rbp-30h] BYREF  unsigned __int64 v5; // [rsp+68h] [rbp-8h]   v5 = __readfsqword(0x28u);  strcpy(src, \"aBcdeFghiJKlMnopqRstuVWxYz\");  strcpy(dest, src);  for ( i = dest; *i; ++i )  *i = tolower(*i);  *a1 = strcmp(src, dest) == 0;  return __readfsqword(0x28u) ^ v5; } 要么让tolower()失效，要么让strcmp()失效。\n脚本 def fake_tolower(ql: Qiling):  return  def challenge9(ql: Qiling):  ql.set_api('tolower', fake_tolower) challenge10: 劫持文件系统，返回指定命令行 unsigned __int64 __fastcall challenge10(_BYTE *a1) {  int i; // [rsp+10h] [rbp-60h]  int fd; // [rsp+14h] [rbp-5Ch]  ssize_t v4; // [rsp+18h] [rbp-58h]  char buf[72]; // [rsp+20h] [rbp-50h] BYREF  unsigned __int64 v6; // [rsp+68h] [rbp-8h]   v6 = __readfsqword(0x28u);  fd = open(\"/proc/self/cmdline\", 0);  if ( fd != -1 )  {  v4 = read(fd, buf, 0x3FuLL);  if ( v4  0 )  {  close(fd);  for ( i = 0; v4  i; ++i )  {  if ( !buf[i] )  buf[i] = 32;  }  buf[v4] = 0;  if ( !strcmp(buf, \"qilinglab\") )  *a1 = 1;  }  }  return __readfsqword(0x28u) ^ v6; } 让我们能从/proc/self/cmdline读到\"qilinglab\"，故技重施即可，hook文件系统。\n脚本 class Fake_cmdline(QlFsMappedObject):  def read(self, expected_len):  return b'qilinglab'   def close(self):  return 0  def challenge10(ql: Qiling):  ql.add_fs_mapper('/proc/self/cmdline', Fake_cmdline()) 简便方法 可以直接替换指定文件成我们的文件，先创建我们需要的文件：\necho -n \"qilinglab\"  fake_cmdline 然后代码就可以这样写了：\ndef challenge10(ql):  ql.add_fs_mapper(\"/proc/self/cmdline\", \"./fake_cmdline\") 还一种方法，代码也不用写了，直接往qiling的rootfs里面写：\nmkdir -p ./qiling/examples/rootfs/x8664_linux/proc/self echo -n \"qilinglab\"  ./qiling/examples/rootfs/x8664_linux/proc/self/cmdline challenge 11: 指令hook 这里指的是用qiling的指令hook_code()而不是ql.hook_insn()，先看下目标\nunsigned __int64 __fastcall challenge11(_BYTE *a1) {  int v7; // [rsp+1Ch] [rbp-34h]  int v8; // [rsp+24h] [rbp-2Ch]  char s[4]; // [rsp+2Bh] [rbp-25h] BYREF  char v10[4]; // [rsp+2Fh] [rbp-21h] BYREF  char v11[4]; // [rsp+33h] [rbp-1Dh] BYREF  unsigned __int64 v12; // [rsp+38h] [rbp-18h]   v12 = __readfsqword(0x28u);  _RAX = 0x40000000LL;  __asm { cpuid }  v7 = _RCX;  v8 = _RDX;  if ( __PAIR64__(_RBX, _RCX) == 0x696C6951614C676ELL \u0026\u0026 (_DWORD)_RDX == 538976354 )  *a1 = 1;  // ... } 看下汇编：\ncpuid mov eax, edx mov esi, ebx mov [rbp+var_30], esi mov [rbp+var_34], ecx mov [rbp+var_2C], eax cmp [rbp+var_30], 696C6951h jnz short loc_564846E011C0 cmp [rbp+var_34], 614C676Eh jnz short loc_564846E011C0 cmp [rbp+var_2C], 20202062h jnz short loc_564846E011C0 目标就很明确了。cpuid指令会填充几个寄存器，具体可以参考intel手册。\n脚本 def hook_cpuid(ql: Qiling, address, size):  \"\"\" 0000564846E0118F 0F A2 cpuid \"\"\"  if ql.mem.read(address, size) == b'\\x0F\\xA2':  ql.reg.ebx = 0x696C6951  ql.reg.ecx = 0x614C676E  ql.reg.edx = 0x20202062  ql.reg.rip += 2   def challenge11(ql: Qiling):  begin, end = 0, 0  for info in ql.mem.map_info:  if info[2] == 5 and info[3] == '/mnt/d/Playground/QilingLab/qilinglab-x86_64':  begin, end = info[:2]   ql.hook_code(hook_cpuid, begin=begin, end=end) 说明：\nql.mem.map_info也就是ql.mem.show_mapinfo()的内容，5表示的是r-x属性，加这个判断也是为了缩小hook的范围，提高性能。\n总结 好耶！\nChallenge 1: SOLVED Challenge 2: SOLVED Challenge 3: SOLVED Challenge 4: SOLVED Challenge 5: SOLVED Challenge 6: SOLVED Challenge 7: SOLVED Challenge 8: SOLVED Challenge 9: SOLVED Challenge 10: SOLVED Challenge 11: SOLVED You solved 11/11 of the challenges 到此位置这个练习就全部结束了！感觉也没啥太多坑的点，有的话根据报错信息来解决就好。\n",
+  "wordCount" : "1500",
+  "inLanguage": "en",
+  "datePublished": "2021-08-19T02:03:42+08:00",
+  "dateModified": "2021-08-19T02:03:42+08:00",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://xxr0ss.github.io/post/hands_on_qiling_framework/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "XX の Blog",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://xxr0ss.github.io/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+
+<body class="" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.body.classList.add('dark');
+    } else if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark');
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://xxr0ss.github.io/" accesskey="h" title="XX の Blog (Alt + H)">XX の Blog</a>
+            <span class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </span>
+        </div>
+        <ul id="menu">
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    
+    <h1 class="post-title">
+      手把手Qiling Framework上手教程
+    </h1>
+    <div class="post-meta"><span title='2021-08-19 02:03:42 +0800 CST'>August 19, 2021</span>
+
+</div>
+  </header> 
+  <div class="post-content"><h2 id="简介">简介<a hidden class="anchor" aria-hidden="true" href="#简介">#</a></h2>
+<p>QilingLab来源： <a href="https://www.shielder.it/blog/2021/07/qilinglab-release/">Shielder - QilingLab – Release</a>，是一个包含十几个小挑战的程序，用于快速上手Qiling框架的主要功能。Qiling框架就不多做介绍了。</p>
+<p>两个不同架构但是内容一样，任选其一做即可。aarch64版本已有Joan Sivion做的<a href="https://joansivion.github.io/qilinglabs/">Qiling Labs - JoanSivion Security Blog</a>，我这里用x86-64做一遍，当作对Joan Sivion的补充和中文翻译。</p>
+<h2 id="题目样本">题目样本<a hidden class="anchor" aria-hidden="true" href="#题目样本">#</a></h2>
+<p><a href="hands_on_qiling_framework.assets/file/qilinglab-x86_64">qilinglab-x86_64</a></p>
+<p><a href="hands_on_qiling_framework.assets/file/qilinglab-aarch64">qilinglab-aarch64</a></p>
+<h2 id="开始挑战">开始挑战！<a hidden class="anchor" aria-hidden="true" href="#开始挑战">#</a></h2>
+<p>qilinglab出发点只是训练qiling框架的使用，所以没有啥逆向强度，符号也没有去，我们直接用IDA打开看即可。</p>
+<h3 id="看下题目">看下题目<a hidden class="anchor" aria-hidden="true" href="#看下题目">#</a></h3>
+<p>运行看到题目列表：</p>
+<pre tabindex="0"><code class="language-纯文本" data-lang="纯文本">Challenge 1: Store 1337 at pointer 0x1337.
+Challenge 2: Make the &#39;uname&#39; syscall return the correct values.
+Challenge 3: Make &#39;/dev/urandom&#39; and &#39;getrandom&#39; &#34;collide&#34;.
+Challenge 4: Enter inside the &#34;forbidden&#34; loop.
+Challenge 5: Guess every call to rand().
+Challenge 6: Avoid the infinite loop.
+Challenge 7: Don&#39;t waste time waiting for &#39;sleep&#39;.
+Challenge 8: Unpack the struct and write at the target address.
+Challenge 9: Fix some string operation to make the iMpOsSiBlE come true.
+Challenge 10: Fake the &#39;cmdline&#39; line file to return the right content.
+Challenge 11: Bypass CPUID/MIDR_EL1 checks.
+</code></pre><p>IDA打开，可以看到<code>main() → start()</code>里就是一大堆调用<code>challangeX(a)</code>并对结果进行校验，我们的目的就是让传入的指针指向的位置能被正确赋值1。没有逆向难度所以不多做解释。</p>
+<p>直接运行的话，并不会输出每个Challenge的结果（SOLVED/UNSOLVED），甚至还会出现<code>segment fault</code>，这些都是正常现象，请放心食用，当你完成某些挑战后，自然就能看到更多的结果了。</p>
+<h3 id="基本用法">基本用法<a hidden class="anchor" aria-hidden="true" href="#基本用法">#</a></h3>
+<p>我们需要用到rootfs里的东西，所以把qiling的GitHub仓库clone下来，里面rootfs是个submodule所以干脆整个用</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>git clone https://github.com/qilingframework/qiling.git --recursiv
+</span></span></code></pre></div><p>克隆下来</p>
+<h3 id="基本使用模板">基本使用模板<a hidden class="anchor" aria-hidden="true" href="#基本使用模板">#</a></h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#f92672">from</span> qiling <span style="color:#f92672">import</span> <span style="color:#f92672">*</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">challenge1</span>(ql: Qiling):
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">pass</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> __name__  <span style="color:#f92672">==</span> <span style="color:#e6db74">&#39;__main__&#39;</span>:
+</span></span><span style="display:flex;"><span>    path <span style="color:#f92672">=</span> [<span style="color:#e6db74">&#39;qilinglab-x86_64&#39;</span>] <span style="color:#75715e"># 我们的目标</span>
+</span></span><span style="display:flex;"><span>    rootfs <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;./qiling/examples/rootfs/x8664_linux&#34;</span> <span style="color:#75715e"># 在你clone下来的仓库里</span>
+</span></span><span style="display:flex;"><span>    ql <span style="color:#f92672">=</span> Qiling(path, rootfs)
+</span></span><span style="display:flex;"><span>    challenge1(ql) <span style="color:#75715e"># 在ql.run()之前，做好我们的hook工作</span>
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>run()
+</span></span></code></pre></div><h2 id="challenge-1-操作内存">challenge 1: 操作内存<a hidden class="anchor" aria-hidden="true" href="#challenge-1-操作内存">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span>_BYTE <span style="color:#f92672">*</span><span style="color:#66d9ef">__fastcall</span> <span style="color:#a6e22e">challenge1</span>(_BYTE <span style="color:#f92672">*</span>a1)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  _BYTE <span style="color:#f92672">*</span>result; <span style="color:#75715e">// rax
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>  result <span style="color:#f92672">=</span> (_BYTE <span style="color:#f92672">*</span>)MEMORY[<span style="color:#ae81ff">0x1337</span>];
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> ( MEMORY[<span style="color:#ae81ff">0x1337</span>] <span style="color:#f92672">==</span> <span style="color:#ae81ff">1337</span> )
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    result <span style="color:#f92672">=</span> a1;
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>a1 <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> result;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>需要我们让内存0x1337上存放一个值为1337，我们其实并不能保证程序加载基地址，这里我们需要用</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span>ql<span style="color:#f92672">.</span>mem<span style="color:#f92672">.</span>map(<span style="color:#ae81ff">0x1000</span>, <span style="color:#ae81ff">0x1000</span>, info<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;[challenge]&#39;</span>)
+</span></span></code></pre></div><p>映射一块内存，需要注意的是，qiling底层就是用的Unicorn Engine，内存映射时，要4k对齐。</p>
+<p>综上，还是挺容易得出第一处解法。</p>
+<h3 id="脚本">脚本<a hidden class="anchor" aria-hidden="true" href="#脚本">#</a></h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">challenge1</span>(ql: Qiling):
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>mem<span style="color:#f92672">.</span>map(<span style="color:#ae81ff">0x1000</span>, <span style="color:#ae81ff">0x1000</span>, info<span style="color:#f92672">=</span><span style="color:#e6db74">&#39;[challenge1]&#39;</span>)
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>mem<span style="color:#f92672">.</span>write(<span style="color:#ae81ff">0x1337</span>, ql<span style="color:#f92672">.</span>pack16(<span style="color:#ae81ff">1337</span>)) <span style="color:#75715e"># pack16(value) == struct.pack(&#39;H&#39;, value)</span>
+</span></span></code></pre></div><h4 id="tips">Tips<a hidden class="anchor" aria-hidden="true" href="#tips">#</a></h4>
+<p>在<code>ql.run()</code>前加一句<code>ql.verbose = 0</code>方便看输出内容</p>
+<h2 id="challenge-2-修改系统调用">challenge 2: 修改系统调用<a hidden class="anchor" aria-hidden="true" href="#challenge-2-修改系统调用">#</a></h2>
+<p>让我们修改uname系统调用，让它返回正确的值。IDA看下“正确的值”指的是什么</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C" data-lang="C"><span style="display:flex;"><span><span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">__int64</span> <span style="color:#66d9ef">__fastcall</span> <span style="color:#a6e22e">challenge2</span>(_BYTE <span style="color:#f92672">*</span>a1)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">int</span> v2; <span style="color:#75715e">// [rsp+10h] [rbp-1D0h]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">int</span> v3; <span style="color:#75715e">// [rsp+14h] [rbp-1CCh]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">int</span> v4; <span style="color:#75715e">// [rsp+18h] [rbp-1C8h]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">int</span> v5; <span style="color:#75715e">// [rsp+1Ch] [rbp-1C4h]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">struct</span> utsname name; <span style="color:#75715e">// [rsp+20h] [rbp-1C0h] BYREF
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">char</span> s[<span style="color:#ae81ff">10</span>]; <span style="color:#75715e">// [rsp+1A6h] [rbp-3Ah] BYREF
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">char</span> v8[<span style="color:#ae81ff">16</span>]; <span style="color:#75715e">// [rsp+1B0h] [rbp-30h] BYREF
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">__int64</span> v9; <span style="color:#75715e">// [rsp+1C8h] [rbp-18h]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>  v9 <span style="color:#f92672">=</span> __readfsqword(<span style="color:#ae81ff">0x28u</span>);
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> ( uname(<span style="color:#f92672">&amp;</span>name) )
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    perror(<span style="color:#e6db74">&#34;uname&#34;</span>);
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">else</span>
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    strcpy(s, <span style="color:#e6db74">&#34;QilingOS&#34;</span>);
+</span></span><span style="display:flex;"><span>    strcpy(v8, <span style="color:#e6db74">&#34;ChallengeStart&#34;</span>);
+</span></span><span style="display:flex;"><span>    v2 <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    v3 <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">while</span> ( v4 <span style="color:#f92672">&lt;</span> strlen(s) )
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> ( name.sysname[v4] <span style="color:#f92672">==</span> s[v4] )
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">++</span>v2;
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">++</span>v4;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">while</span> ( v5 <span style="color:#f92672">&lt;</span> strlen(v8) )
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> ( name.version[v5] <span style="color:#f92672">==</span> v8[v5] )
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">++</span>v3;
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">++</span>v5;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> ( v2 <span style="color:#f92672">==</span> strlen(s) <span style="color:#f92672">&amp;&amp;</span> v3 <span style="color:#f92672">==</span> strlen(v8) <span style="color:#f92672">&amp;&amp;</span> v2 <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">5</span> )
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">*</span>a1 <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> __readfsqword(<span style="color:#ae81ff">0x28u</span>) <span style="color:#f92672">^</span> v9;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>uname系统调用用来获取系统的一些信息，传入一个utsname结构体buffer让它填充。可以在<code>&lt;sys/utsname.h&gt;</code>看到utsname的定义（经过整理）：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> utsname
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> sysname[<span style="color:#ae81ff">65</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> nodename[<span style="color:#ae81ff">65</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> release[<span style="color:#ae81ff">65</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> version[<span style="color:#ae81ff">65</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> machine[<span style="color:#ae81ff">65</span>];
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> domainname[<span style="color:#ae81ff">65</span>];
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>而Qiling提供了在系统调用返回时进行hook的功能。</p>
+<h3 id="脚本-1">脚本<a hidden class="anchor" aria-hidden="true" href="#脚本-1">#</a></h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">hook_uname_on_exit</span>(ql: Qiling, <span style="color:#f92672">*</span>args):
+</span></span><span style="display:flex;"><span>    rdi <span style="color:#f92672">=</span> ql<span style="color:#f92672">.</span>reg<span style="color:#f92672">.</span>rdi
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>mem<span style="color:#f92672">.</span>write(rdi, <span style="color:#e6db74">b</span><span style="color:#e6db74">&#39;QilingOS</span><span style="color:#ae81ff">\x00</span><span style="color:#e6db74">&#39;</span>)
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>mem<span style="color:#f92672">.</span>write(rdi <span style="color:#f92672">+</span> <span style="color:#ae81ff">65</span> <span style="color:#f92672">*</span> <span style="color:#ae81ff">3</span>, <span style="color:#e6db74">b</span><span style="color:#e6db74">&#39;ChallengeStart</span><span style="color:#ae81ff">\x00</span><span style="color:#e6db74">&#39;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">challenge2</span>(ql: Qiling):
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>set_syscall(<span style="color:#e6db74">&#39;uname&#39;</span>, hook_uname_on_exit, QL_INTERCEPT<span style="color:#f92672">.</span>EXIT)
+</span></span></code></pre></div><h2 id="challenge-3-劫持文件系统系统调用">challenge 3: 劫持文件系统&amp;系统调用<a hidden class="anchor" aria-hidden="true" href="#challenge-3-劫持文件系统系统调用">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">__int64</span> <span style="color:#66d9ef">__fastcall</span> <span style="color:#a6e22e">challenge3</span>(_BYTE <span style="color:#f92672">*</span>a1)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">int</span> v2; <span style="color:#75715e">// [rsp+10h] [rbp-60h]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">int</span> i; <span style="color:#75715e">// [rsp+14h] [rbp-5Ch]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">int</span> fd; <span style="color:#75715e">// [rsp+18h] [rbp-58h]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">char</span> v5; <span style="color:#75715e">// [rsp+1Fh] [rbp-51h] BYREF
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">char</span> buf[<span style="color:#ae81ff">32</span>]; <span style="color:#75715e">// [rsp+20h] [rbp-50h] BYREF
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">char</span> buf2[<span style="color:#ae81ff">40</span>]; <span style="color:#75715e">// [rsp+40h] [rbp-30h] BYREF
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">__int64</span> v8; <span style="color:#75715e">// [rsp+68h] [rbp-8h]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>  v8 <span style="color:#f92672">=</span> __readfsqword(<span style="color:#ae81ff">0x28u</span>);
+</span></span><span style="display:flex;"><span>  fd <span style="color:#f92672">=</span> open(<span style="color:#e6db74">&#34;/dev/urandom&#34;</span>, <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>  read(fd, buf, <span style="color:#ae81ff">0x20uLL</span>);
+</span></span><span style="display:flex;"><span>  read(fd, <span style="color:#f92672">&amp;</span>v5, <span style="color:#ae81ff">1uLL</span>);
+</span></span><span style="display:flex;"><span>  close(fd);
+</span></span><span style="display:flex;"><span>  getrandom((<span style="color:#66d9ef">__int64</span>)buf2, <span style="color:#ae81ff">32LL</span>, <span style="color:#ae81ff">1LL</span>);
+</span></span><span style="display:flex;"><span>  v2 <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> ( i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;=</span> <span style="color:#ae81ff">31</span>; <span style="color:#f92672">++</span>i )
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> ( buf[i] <span style="color:#f92672">==</span> buf2[i] <span style="color:#f92672">&amp;&amp;</span> buf[i] <span style="color:#f92672">!=</span> v5 )
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">++</span>v2;
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> ( v2 <span style="color:#f92672">==</span> <span style="color:#ae81ff">32</span> )
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>a1 <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> __readfsqword(<span style="color:#ae81ff">0x28u</span>) <span style="color:#f92672">^</span> v8;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>可以看到需要我们解决两个问题：</p>
+<ol>
+<li>直接读取<code>/dev/urandom</code>得到的随机数，和通过<code>getrandom()</code>得到的随机数要完全一样</li>
+<li>还要有一个字节的随机数，和剩下的都不一样。</li>
+</ol>
+<p>Qiling提供了<code>QlFsMappedObject</code>让我们能很方便地自定义文件系统，最少要实现<code>close</code>，剩下的可以看源码，根据需要自行去实现：<code>read</code>, <code>write</code>, <code>fileno</code>, <code>lseek</code>, <code>fstat</code>, <code>ioctl</code>, <code>tell</code>, <code>dup</code>, <code>readline</code>。</p>
+<h3 id="脚本-2">脚本<a hidden class="anchor" aria-hidden="true" href="#脚本-2">#</a></h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Fake_urandom</span>(QlFsMappedObject):
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">read</span>(self, expected_len):
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> expected_len <span style="color:#f92672">==</span> <span style="color:#ae81ff">1</span>:
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#39;</span><span style="color:#ae81ff">\x23</span><span style="color:#e6db74">&#39;</span>  <span style="color:#75715e"># casual single byte here</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">else</span>:
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#39;</span><span style="color:#ae81ff">\x00</span><span style="color:#e6db74">&#39;</span> <span style="color:#f92672">*</span> expected_len
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">close</span>(self):
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">hook_getrandom</span>(ql: Qiling, buf, buflen, flags, <span style="color:#f92672">*</span>args):
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>mem<span style="color:#f92672">.</span>write(buf, <span style="color:#e6db74">b</span><span style="color:#e6db74">&#39;</span><span style="color:#ae81ff">\x00</span><span style="color:#e6db74">&#39;</span> <span style="color:#f92672">*</span> buflen)
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>os<span style="color:#f92672">.</span>set_syscall_return(<span style="color:#ae81ff">0</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">challenge3</span>(ql: Qiling):
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>add_fs_mapper(<span style="color:#e6db74">&#39;/dev/urandom&#39;</span>, Fake_urandom())
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>set_syscall(<span style="color:#e6db74">&#39;getrandom&#39;</span>, hook_getrandom)
+</span></span></code></pre></div><h2 id="challenge-4-hook地址">challenge 4: hook地址<a hidden class="anchor" aria-hidden="true" href="#challenge-4-hook地址">#</a></h2>
+<p>在我的IDA上，F5看不到完整流程。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">__int64</span> <span style="color:#a6e22e">challenge4</span>()
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0LL</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>所以看汇编：</p>
+<p><img loading="lazy" src="hands_on_qiling_framework.assets/image/image.png" alt=""  />
+</p>
+<p>可以看到有个不成立的循环，正常执行不会进入。相当于是：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">while</span> (i <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>a1 <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>    i<span style="color:#f92672">++</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">return</span>;
+</span></span></code></pre></div><p>所以在比较前将终止条件改为1，这样可以执行一次，让函数参数赋值为1。</p>
+<h3 id="脚本-3">脚本<a hidden class="anchor" aria-hidden="true" href="#脚本-3">#</a></h3>
+<p><code>hook_address</code>里注册的回调在执行被hook地址处之前执行，然后才执行这个地址上的指令。所以我们hook在cmp这句。这样<code>while</code>里就是比较 <code>i &lt; 1</code>了。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">enter_forbidden_loop_hook</span>(ql: Qiling):
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>reg<span style="color:#f92672">.</span>eax <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">challenge4</span>(ql: Qiling):
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;&#34;&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    000055A3E4800E40 8B 45 F8   mov     eax, [rbp+var_8]
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    000055A3E4800E43 39 45 FC   cmp     [rbp+var_4], eax        &lt;&lt;&lt; hook here
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    000055A3E4800E46 7C ED      jl      short loc_55A3E4800E35
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>    base <span style="color:#f92672">=</span> ql<span style="color:#f92672">.</span>mem<span style="color:#f92672">.</span>get_lib_base(ql<span style="color:#f92672">.</span>path)
+</span></span><span style="display:flex;"><span>    hook_addr <span style="color:#f92672">=</span> base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0xE43</span>
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>hook_address(enter_forbidden_loop_hook, hook_addr)
+</span></span></code></pre></div><h2 id="challenge-5-hook外部函数">challenge 5: hook外部函数<a hidden class="anchor" aria-hidden="true" href="#challenge-5-hook外部函数">#</a></h2>
+<p>来看看我们的目标：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">__int64</span> <span style="color:#66d9ef">__fastcall</span> <span style="color:#a6e22e">challenge5</span>(_BYTE <span style="color:#f92672">*</span>a1)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">int</span> v1; <span style="color:#75715e">// eax
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">int</span> i; <span style="color:#75715e">// [rsp+18h] [rbp-48h]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">int</span> j; <span style="color:#75715e">// [rsp+1Ch] [rbp-44h]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">int</span> v5[<span style="color:#ae81ff">14</span>]; <span style="color:#75715e">// [rsp+20h] [rbp-40h]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">__int64</span> v6; <span style="color:#75715e">// [rsp+58h] [rbp-8h]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>  v6 <span style="color:#f92672">=</span> __readfsqword(<span style="color:#ae81ff">0x28u</span>);
+</span></span><span style="display:flex;"><span>  v1 <span style="color:#f92672">=</span> time(<span style="color:#ae81ff">0LL</span>);
+</span></span><span style="display:flex;"><span>  srand(v1);
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> ( i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; i <span style="color:#f92672">&lt;=</span> <span style="color:#ae81ff">4</span>; <span style="color:#f92672">++</span>i )
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    v5[i] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    v5[i <span style="color:#f92672">+</span> <span style="color:#ae81ff">8</span>] <span style="color:#f92672">=</span> rand();
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> ( j <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; j <span style="color:#f92672">&lt;=</span> <span style="color:#ae81ff">4</span>; <span style="color:#f92672">++</span>j )
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> ( v5[j] <span style="color:#f92672">!=</span> v5[j <span style="color:#f92672">+</span> <span style="color:#ae81ff">8</span>] )
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      <span style="color:#f92672">*</span>a1 <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">return</span> __readfsqword(<span style="color:#ae81ff">0x28u</span>) <span style="color:#f92672">^</span> v6;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">*</span>a1 <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> __readfsqword(<span style="color:#ae81ff">0x28u</span>) <span style="color:#f92672">^</span> v6;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>显然，只要让rand()每次都返回0是最简单的修改方法了。所以代码比较简单：</p>
+<h3 id="脚本-4">脚本<a hidden class="anchor" aria-hidden="true" href="#脚本-4">#</a></h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">hook_rand</span>(ql: Qiling):
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>reg<span style="color:#f92672">.</span>rax <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">challenge5</span>(ql: Qiling):
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>set_api(<span style="color:#e6db74">&#39;rand&#39;</span>, hook_rand)
+</span></span></code></pre></div><p>看不到输出challenge5: SOLVED是正常的，因为卡在了challenge6，没有输出来信息。</p>
+<h2 id="challenge-6-突破死循环">challenge 6: 突破死循环<a hidden class="anchor" aria-hidden="true" href="#challenge-6-突破死循环">#</a></h2>
+<p>流程很清晰，只要我们修改死循环部分，参数就会乖乖被赋值1</p>
+<p><img loading="lazy" src="hands_on_qiling_framework.assets/image/image_1.png" alt=""  />
+</p>
+<h3 id="脚本-5">脚本<a hidden class="anchor" aria-hidden="true" href="#脚本-5">#</a></h3>
+<p>同理，要抢在比较之前修改al的值</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">hook_while_true</span>(ql: Qiling):
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;&#34;&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    0000564846E00F12 0F B6 45 FB    movzx   eax, [rbp+var_5]
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    0000564846E00F16 84 C0          test    al, al          &lt;&lt;&lt; hook here
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    0000564846E00F18 75 F1          jnz     short loc_564846E00F0B
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>reg<span style="color:#f92672">.</span>rax <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">challenge6</span>(ql: Qiling):
+</span></span><span style="display:flex;"><span>    base <span style="color:#f92672">=</span> ql<span style="color:#f92672">.</span>mem<span style="color:#f92672">.</span>get_lib_base(ql<span style="color:#f92672">.</span>path)
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>hook_address(hook_while_true, base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0xF16</span>)
+</span></span></code></pre></div><h2 id="challenge-7-不许睡了快起来修改sleep">challenge 7: 不许睡了，快起来！——修改sleep()<a hidden class="anchor" aria-hidden="true" href="#challenge-7-不许睡了快起来修改sleep">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">int</span> <span style="color:#66d9ef">__fastcall</span> <span style="color:#a6e22e">challenge7</span>(_BYTE <span style="color:#f92672">*</span>a1)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">*</span>a1 <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> sleep(<span style="color:#ae81ff">0xFFFFFFFF</span>);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>可以很轻易想到n种办法：</p>
+<ol>
+<li>修改<code>sleep</code>参数值，减少睡眠时间</li>
+<li>自己实现api<code>sleep()</code>，直接返回</li>
+<li>修改系统调用<code>nanosleep()</code>，直接返回，因为<code>sleep()</code>底层调用的<code>nanosleep()</code>
+可以看一下
+<pre tabindex="0"><code class="language-纯文本" data-lang="纯文本"># man 3 sleep
+NOTES
+       On Linux, sleep() is implemented via nanosleep(2).   See  the  nanosleep(2)
+       man page for a discussion of the clock used. 
+</code></pre>``</li>
+</ol>
+<h4 id="脚本-6">脚本<a hidden class="anchor" aria-hidden="true" href="#脚本-6">#</a></h4>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">modify_arg</span>(ql: Qiling):
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>reg<span style="color:#f92672">.</span>edi <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">i_slept_i_faked_it</span>(ql: Qiling):
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># 我睡了，我装的</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">hook_nanosleep</span>(ql: Qiling, <span style="color:#f92672">*</span>args, <span style="color:#f92672">**</span>kwargs):
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># 注意参数列表</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">challenge7</span>(ql: Qiling):
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># method 1</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># ql.set_api(&#39;sleep&#39;, modify_arg, QL_INTERCEPT.ENTER)</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># method 2</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># ql.set_api(&#39;sleep&#39;, i_slept_i_faked_it)</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># method 3</span>
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>set_syscall(<span style="color:#e6db74">&#39;nanosleep&#39;</span>, hook_nanosleep)
+</span></span></code></pre></div><h2 id="challenge-8-解析结构体往正确地址写入值">challenge 8: 解析结构体，往正确地址写入值<a hidden class="anchor" aria-hidden="true" href="#challenge-8-解析结构体往正确地址写入值">#</a></h2>
+<p>这里直接借用Joan Sivion整理的代码：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">void</span> <span style="color:#a6e22e">challenge8</span>(<span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>check) {
+</span></span><span style="display:flex;"><span>    random_struct <span style="color:#f92672">*</span>s;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    s <span style="color:#f92672">=</span> (random_struct <span style="color:#f92672">*</span>)malloc(<span style="color:#ae81ff">24</span>);
+</span></span><span style="display:flex;"><span>    s<span style="color:#f92672">-&gt;</span>some_string <span style="color:#f92672">=</span> (<span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>)malloc(<span style="color:#ae81ff">0x1E</span>);
+</span></span><span style="display:flex;"><span>    s<span style="color:#f92672">-&gt;</span>magic <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x3DFCD6EA00000539</span>;
+</span></span><span style="display:flex;"><span>    strcpy(s<span style="color:#f92672">-&gt;</span>field_0, <span style="color:#e6db74">&#34;Random data&#34;</span>);
+</span></span><span style="display:flex;"><span>    s<span style="color:#f92672">-&gt;</span>check_addr <span style="color:#f92672">=</span> check;
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">struct</span> random_struct {
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>some_string;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">__int64</span> magic;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>check_addr;
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>方法有两种：</p>
+<ol>
+<li>
+<p>最后一句的时候，获取这个结构体地址，可以看一下最后部分的汇编：</p>
+<pre tabindex="0"><code class="language-纯文本" data-lang="纯文本">.text:0000564846E00FA9 48 8B 45 F8      mov     rax, [rbp+stru] ; stru == -8
+.text:0000564846E00FAD 48 8B 55 E8      mov     rdx, [rbp+var_18]
+.text:0000564846E00FB1 48 89 50 10      mov     [rax+10h], rdx
+.text:0000564846E00FB5 90               nop
+.text:0000564846E00FB6 C9               leave
+.text:0000564846E00FB7 C3               retn
+</code></pre><p>``</p>
+<p>然后结构体偏移<code>+0x16</code>的地方就是保存了参数的位置。</p>
+</li>
+<li>
+<p>使用qiling提供的机制，用<code>ql.mem.search()</code>搜索内存。看一下代码可以发现，这个结构体保存了一个魔数<code>0x3DFCD6EA00000539</code>，这正好是个特征方便我们去搜索这块内存。当然，还在第一个字段保存了一个指针指向一个固定的字符串，如果那个魔数在内存中出现多次，那显然我们还需要进一步获取信息确定是不是我们要找的那个结构体：保存了参数<code>check</code>的结构体。</p>
+</li>
+</ol>
+<h3 id="脚本-7">脚本<a hidden class="anchor" aria-hidden="true" href="#脚本-7">#</a></h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">hook_struct</span>(ql: Qiling):
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;&#34;&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    0000564846E00FA9 48 8B 45 F8      mov     rax, [rbp+str]    ; rbp - 8
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    0000564846E00FAD 48 8B 55 E8      mov     rdx, [rbp+var_18]
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    0000564846E00FB1 48 89 50 10      mov     [rax+10h], rdx
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    0000564846E00FB5 90               nop       &lt;&lt;&lt; hook here
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    0000564846E00FB6 C9               leave
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    0000564846E00FB7 C3               retn
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>    heap_struct_addr <span style="color:#f92672">=</span> ql<span style="color:#f92672">.</span>unpack64(ql<span style="color:#f92672">.</span>mem<span style="color:#f92672">.</span>read(ql<span style="color:#f92672">.</span>reg<span style="color:#f92672">.</span>rbp <span style="color:#f92672">-</span> <span style="color:#ae81ff">8</span>, <span style="color:#ae81ff">8</span>))
+</span></span><span style="display:flex;"><span>    heap_struct <span style="color:#f92672">=</span> ql<span style="color:#f92672">.</span>mem<span style="color:#f92672">.</span>read(heap_struct_addr, <span style="color:#ae81ff">24</span>)
+</span></span><span style="display:flex;"><span>    printHex(heap_struct)
+</span></span><span style="display:flex;"><span>    _, _, check_addr <span style="color:#f92672">=</span> struct<span style="color:#f92672">.</span>unpack(<span style="color:#e6db74">&#39;QQQ&#39;</span>, heap_struct)
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>mem<span style="color:#f92672">.</span>write(check_addr, <span style="color:#e6db74">b</span><span style="color:#e6db74">&#39;</span><span style="color:#ae81ff">\x01</span><span style="color:#e6db74">&#39;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">search_mem_to_find_struct</span>(ql: Qiling):
+</span></span><span style="display:flex;"><span>    MAGIC <span style="color:#f92672">=</span> ql<span style="color:#f92672">.</span>pack64(<span style="color:#ae81ff">0x3DFCD6EA00000539</span>)
+</span></span><span style="display:flex;"><span>    candidate_addrs <span style="color:#f92672">=</span> ql<span style="color:#f92672">.</span>mem<span style="color:#f92672">.</span>search(MAGIC)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> addr <span style="color:#f92672">in</span> candidate_addrs:
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># 有可能有多个地址，所以通过其他特征进一步确认</span>
+</span></span><span style="display:flex;"><span>        stru_addr <span style="color:#f92672">=</span> addr <span style="color:#f92672">-</span> <span style="color:#ae81ff">8</span>
+</span></span><span style="display:flex;"><span>        stru <span style="color:#f92672">=</span> ql<span style="color:#f92672">.</span>mem<span style="color:#f92672">.</span>read(stru_addr, <span style="color:#ae81ff">24</span>)
+</span></span><span style="display:flex;"><span>        string_addr, _, check_addr <span style="color:#f92672">=</span> struct<span style="color:#f92672">.</span>unpack(<span style="color:#e6db74">&#39;QQQ&#39;</span>, stru)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> ql<span style="color:#f92672">.</span>mem<span style="color:#f92672">.</span>string(string_addr) <span style="color:#f92672">==</span> <span style="color:#e6db74">&#39;Random data&#39;</span>:
+</span></span><span style="display:flex;"><span>            ql<span style="color:#f92672">.</span>mem<span style="color:#f92672">.</span>write(check_addr, <span style="color:#e6db74">b</span><span style="color:#e6db74">&#39;</span><span style="color:#ae81ff">\x01</span><span style="color:#e6db74">&#39;</span>)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">challenge8</span>(ql: Qiling):
+</span></span><span style="display:flex;"><span>    base <span style="color:#f92672">=</span> ql<span style="color:#f92672">.</span>mem<span style="color:#f92672">.</span>get_lib_base(ql<span style="color:#f92672">.</span>path)
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># method 1</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># ql.hook_address(hook_struct, base + 0xFB5)</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e"># method 2</span>
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>hook_address(search_mem_to_find_struct, base <span style="color:#f92672">+</span> <span style="color:#ae81ff">0xFB5</span>)
+</span></span></code></pre></div><h2 id="challenge-9-修改字符串函数">challenge 9: 修改字符串函数<a hidden class="anchor" aria-hidden="true" href="#challenge-9-修改字符串函数">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">__int64</span> <span style="color:#66d9ef">__fastcall</span> <span style="color:#a6e22e">challenge9</span>(<span style="color:#66d9ef">bool</span> <span style="color:#f92672">*</span>a1)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>i; <span style="color:#75715e">// [rsp+18h] [rbp-58h]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">char</span> dest[<span style="color:#ae81ff">32</span>]; <span style="color:#75715e">// [rsp+20h] [rbp-50h] BYREF
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">char</span> src[<span style="color:#ae81ff">40</span>]; <span style="color:#75715e">// [rsp+40h] [rbp-30h] BYREF
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">__int64</span> v5; <span style="color:#75715e">// [rsp+68h] [rbp-8h]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>  v5 <span style="color:#f92672">=</span> __readfsqword(<span style="color:#ae81ff">0x28u</span>);
+</span></span><span style="display:flex;"><span>  strcpy(src, <span style="color:#e6db74">&#34;aBcdeFghiJKlMnopqRstuVWxYz&#34;</span>);
+</span></span><span style="display:flex;"><span>  strcpy(dest, src);
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">for</span> ( i <span style="color:#f92672">=</span> dest; <span style="color:#f92672">*</span>i; <span style="color:#f92672">++</span>i )
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>i <span style="color:#f92672">=</span> tolower(<span style="color:#f92672">*</span>i);
+</span></span><span style="display:flex;"><span>  <span style="color:#f92672">*</span>a1 <span style="color:#f92672">=</span> strcmp(src, dest) <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> __readfsqword(<span style="color:#ae81ff">0x28u</span>) <span style="color:#f92672">^</span> v5;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>要么让<code>tolower()</code>失效，要么让<code>strcmp()</code>失效。</p>
+<h3 id="脚本-8">脚本<a hidden class="anchor" aria-hidden="true" href="#脚本-8">#</a></h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">fake_tolower</span>(ql: Qiling):
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">challenge9</span>(ql: Qiling):
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>set_api(<span style="color:#e6db74">&#39;tolower&#39;</span>, fake_tolower)
+</span></span></code></pre></div><h2 id="challenge10-劫持文件系统返回指定命令行">challenge10: 劫持文件系统，返回指定命令行<a hidden class="anchor" aria-hidden="true" href="#challenge10-劫持文件系统返回指定命令行">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">__int64</span> <span style="color:#66d9ef">__fastcall</span> <span style="color:#a6e22e">challenge10</span>(_BYTE <span style="color:#f92672">*</span>a1)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">int</span> i; <span style="color:#75715e">// [rsp+10h] [rbp-60h]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">int</span> fd; <span style="color:#75715e">// [rsp+14h] [rbp-5Ch]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  ssize_t v4; <span style="color:#75715e">// [rsp+18h] [rbp-58h]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">char</span> buf[<span style="color:#ae81ff">72</span>]; <span style="color:#75715e">// [rsp+20h] [rbp-50h] BYREF
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">__int64</span> v6; <span style="color:#75715e">// [rsp+68h] [rbp-8h]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>  v6 <span style="color:#f92672">=</span> __readfsqword(<span style="color:#ae81ff">0x28u</span>);
+</span></span><span style="display:flex;"><span>  fd <span style="color:#f92672">=</span> open(<span style="color:#e6db74">&#34;/proc/self/cmdline&#34;</span>, <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> ( fd <span style="color:#f92672">!=</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span> )
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>    v4 <span style="color:#f92672">=</span> read(fd, buf, <span style="color:#ae81ff">0x3FuLL</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> ( v4 <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0</span> )
+</span></span><span style="display:flex;"><span>    {
+</span></span><span style="display:flex;"><span>      close(fd);
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">for</span> ( i <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>; v4 <span style="color:#f92672">&gt;</span> i; <span style="color:#f92672">++</span>i )
+</span></span><span style="display:flex;"><span>      {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> ( <span style="color:#f92672">!</span>buf[i] )
+</span></span><span style="display:flex;"><span>          buf[i] <span style="color:#f92672">=</span> <span style="color:#ae81ff">32</span>;
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>      buf[v4] <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>      <span style="color:#66d9ef">if</span> ( <span style="color:#f92672">!</span>strcmp(buf, <span style="color:#e6db74">&#34;qilinglab&#34;</span>) )
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>a1 <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">return</span> __readfsqword(<span style="color:#ae81ff">0x28u</span>) <span style="color:#f92672">^</span> v6;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>让我们能从<code>/proc/self/cmdline</code>读到<code>&quot;qilinglab&quot;</code>，故技重施即可，hook文件系统。</p>
+<h3 id="脚本-9">脚本<a hidden class="anchor" aria-hidden="true" href="#脚本-9">#</a></h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">Fake_cmdline</span>(QlFsMappedObject):
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">read</span>(self, expected_len):
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#39;qilinglab&#39;</span>
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">close</span>(self):
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">challenge10</span>(ql: Qiling):
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>add_fs_mapper(<span style="color:#e6db74">&#39;/proc/self/cmdline&#39;</span>, Fake_cmdline())
+</span></span></code></pre></div><h3 id="简便方法">简便方法<a hidden class="anchor" aria-hidden="true" href="#简便方法">#</a></h3>
+<p>可以直接替换指定文件成我们的文件，先创建我们需要的文件：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>echo -n <span style="color:#e6db74">&#34;qilinglab&#34;</span> &gt; fake_cmdline
+</span></span></code></pre></div><p>然后代码就可以这样写了：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">challenge10</span>(ql):
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>add_fs_mapper(<span style="color:#e6db74">&#34;/proc/self/cmdline&#34;</span>, <span style="color:#e6db74">&#34;./fake_cmdline&#34;</span>)
+</span></span></code></pre></div><p>还一种方法，代码也不用写了，直接往qiling的rootfs里面写：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>mkdir -p ./qiling/examples/rootfs/x8664_linux/proc/self
+</span></span><span style="display:flex;"><span>echo -n <span style="color:#e6db74">&#34;qilinglab&#34;</span> &gt; ./qiling/examples/rootfs/x8664_linux/proc/self/cmdline
+</span></span></code></pre></div><h2 id="challenge-11-指令hook">challenge 11: 指令hook<a hidden class="anchor" aria-hidden="true" href="#challenge-11-指令hook">#</a></h2>
+<p>这里指的是用qiling的指令<code>hook_code()</code>而不是<code>ql.hook_insn()</code>，先看下目标</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">__int64</span> <span style="color:#66d9ef">__fastcall</span> <span style="color:#a6e22e">challenge11</span>(_BYTE <span style="color:#f92672">*</span>a1)
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">int</span> v7; <span style="color:#75715e">// [rsp+1Ch] [rbp-34h]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">int</span> v8; <span style="color:#75715e">// [rsp+24h] [rbp-2Ch]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">char</span> s[<span style="color:#ae81ff">4</span>]; <span style="color:#75715e">// [rsp+2Bh] [rbp-25h] BYREF
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">char</span> v10[<span style="color:#ae81ff">4</span>]; <span style="color:#75715e">// [rsp+2Fh] [rbp-21h] BYREF
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">char</span> v11[<span style="color:#ae81ff">4</span>]; <span style="color:#75715e">// [rsp+33h] [rbp-1Dh] BYREF
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>  <span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">__int64</span> v12; <span style="color:#75715e">// [rsp+38h] [rbp-18h]
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>  v12 <span style="color:#f92672">=</span> __readfsqword(<span style="color:#ae81ff">0x28u</span>);
+</span></span><span style="display:flex;"><span>  _RAX <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x40000000LL</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">__asm</span> { cpuid }
+</span></span><span style="display:flex;"><span>  v7 <span style="color:#f92672">=</span> _RCX;
+</span></span><span style="display:flex;"><span>  v8 <span style="color:#f92672">=</span> _RDX;
+</span></span><span style="display:flex;"><span>  <span style="color:#66d9ef">if</span> ( __PAIR64__(_RBX, _RCX) <span style="color:#f92672">==</span> <span style="color:#ae81ff">0x696C6951614C676ELL</span> <span style="color:#f92672">&amp;&amp;</span> (_DWORD)_RDX <span style="color:#f92672">==</span> <span style="color:#ae81ff">538976354</span> )
+</span></span><span style="display:flex;"><span>    <span style="color:#f92672">*</span>a1 <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>  <span style="color:#75715e">// ...
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>}
+</span></span></code></pre></div><p>看下汇编：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-NASM" data-lang="NASM"><span style="display:flex;"><span><span style="color:#66d9ef">cpu</span>id
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">mov</span>     eax, edx
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">mov</span>     esi, ebx
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">mov</span>     [rbp<span style="color:#f92672">+</span>var_30], esi
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">mov</span>     [rbp<span style="color:#f92672">+</span>var_34], ecx
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">mov</span>     [rbp<span style="color:#f92672">+</span>var_2C], eax
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">cmp</span>     [rbp<span style="color:#f92672">+</span>var_30], <span style="color:#ae81ff">696C6951h</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">jnz</span>     short loc_564846E011C0
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">cmp</span>     [rbp<span style="color:#f92672">+</span>var_34], <span style="color:#ae81ff">614C676Eh</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">jnz</span>     short loc_564846E011C0
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">cmp</span>     [rbp<span style="color:#f92672">+</span>var_2C], <span style="color:#ae81ff">20202062h</span>
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">jnz</span>     short loc_564846E011C0
+</span></span></code></pre></div><p>目标就很明确了。cpuid指令会填充几个寄存器，具体可以参考intel手册。</p>
+<h3 id="脚本-10">脚本<a hidden class="anchor" aria-hidden="true" href="#脚本-10">#</a></h3>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">hook_cpuid</span>(ql: Qiling, address, size):
+</span></span><span style="display:flex;"><span>    <span style="color:#e6db74">&#34;&#34;&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    0000564846E0118F 0F A2      cpuid
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    &#34;&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> ql<span style="color:#f92672">.</span>mem<span style="color:#f92672">.</span>read(address, size) <span style="color:#f92672">==</span> <span style="color:#e6db74">b</span><span style="color:#e6db74">&#39;</span><span style="color:#ae81ff">\x0F\xA2</span><span style="color:#e6db74">&#39;</span>:
+</span></span><span style="display:flex;"><span>        ql<span style="color:#f92672">.</span>reg<span style="color:#f92672">.</span>ebx <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x696C6951</span>
+</span></span><span style="display:flex;"><span>        ql<span style="color:#f92672">.</span>reg<span style="color:#f92672">.</span>ecx <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x614C676E</span>
+</span></span><span style="display:flex;"><span>        ql<span style="color:#f92672">.</span>reg<span style="color:#f92672">.</span>edx <span style="color:#f92672">=</span> <span style="color:#ae81ff">0x20202062</span>
+</span></span><span style="display:flex;"><span>        ql<span style="color:#f92672">.</span>reg<span style="color:#f92672">.</span>rip <span style="color:#f92672">+=</span> <span style="color:#ae81ff">2</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">def</span> <span style="color:#a6e22e">challenge11</span>(ql: Qiling):
+</span></span><span style="display:flex;"><span>    begin, end <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">for</span> info <span style="color:#f92672">in</span> ql<span style="color:#f92672">.</span>mem<span style="color:#f92672">.</span>map_info:
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> info[<span style="color:#ae81ff">2</span>] <span style="color:#f92672">==</span> <span style="color:#ae81ff">5</span> <span style="color:#f92672">and</span> info[<span style="color:#ae81ff">3</span>] <span style="color:#f92672">==</span> <span style="color:#e6db74">&#39;/mnt/d/Playground/QilingLab/qilinglab-x86_64&#39;</span>:
+</span></span><span style="display:flex;"><span>            begin, end <span style="color:#f92672">=</span> info[:<span style="color:#ae81ff">2</span>]
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    ql<span style="color:#f92672">.</span>hook_code(hook_cpuid, begin<span style="color:#f92672">=</span>begin, end<span style="color:#f92672">=</span>end)
+</span></span></code></pre></div><p>说明：</p>
+<p><code>ql.mem.map_info</code>也就是<code>ql.mem.show_mapinfo()</code>的内容，5表示的是<code>r-x</code>属性，加这个判断也是为了缩小hook的范围，提高性能。</p>
+<h2 id="总结">总结<a hidden class="anchor" aria-hidden="true" href="#总结">#</a></h2>
+<p>好耶！</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>Challenge 1: SOLVED
+</span></span><span style="display:flex;"><span>Challenge 2: SOLVED
+</span></span><span style="display:flex;"><span>Challenge 3: SOLVED
+</span></span><span style="display:flex;"><span>Challenge 4: SOLVED
+</span></span><span style="display:flex;"><span>Challenge 5: SOLVED
+</span></span><span style="display:flex;"><span>Challenge 6: SOLVED
+</span></span><span style="display:flex;"><span>Challenge 7: SOLVED
+</span></span><span style="display:flex;"><span>Challenge 8: SOLVED
+</span></span><span style="display:flex;"><span>Challenge 9: SOLVED
+</span></span><span style="display:flex;"><span>Challenge 10: SOLVED
+</span></span><span style="display:flex;"><span>Challenge 11: SOLVED
+</span></span><span style="display:flex;"><span>You solved 11/11 of the challenges
+</span></span></code></pre></div><p>到此位置这个练习就全部结束了！感觉也没啥太多坑的点，有的话根据报错信息来解决就好。</p>
+
+
+  </div>
+
+  <footer class="post-footer">
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+    <span>&copy; 2022 <a href="https://xxr0ss.github.io/">XX の Blog</a></span>
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://git.io/hugopapermod" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+</body>
+
+</html>

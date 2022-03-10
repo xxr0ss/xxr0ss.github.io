@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Posts on XX の Blog</title>
+    <link>https://xxr0ss.github.io/post/</link>
+    <description>Recent content in Posts on XX の Blog</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>zh-cn</language>
+    <lastBuildDate>Thu, 19 Aug 2021 02:03:42 +0800</lastBuildDate><atom:link href="https://xxr0ss.github.io/post/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>手把手Qiling Framework上手教程</title>
+      <link>https://xxr0ss.github.io/post/hands_on_qiling_framework/</link>
+      <pubDate>Thu, 19 Aug 2021 02:03:42 +0800</pubDate>
+      
+      <guid>https://xxr0ss.github.io/post/hands_on_qiling_framework/</guid>
+      <description>简介 QilingLab来源： Shielder - QilingLab – Release，是一个包含十几个小挑战的程序，用于快速上手Qiling框架的主要功能。Qiling框架就不多做介绍了。
+两个不同架构但是内容一样，任选其一做即可。aarch64版本已有Joan Sivion做的Qiling Labs - JoanSivion Security Blog，我这里用x86-64做一遍，当作对Joan Sivion的补充和中文翻译。
+题目样本 qilinglab-x86_64
+qilinglab-aarch64
+开始挑战！ qilinglab出发点只是训练qiling框架的使用，所以没有啥逆向强度，符号也没有去，我们直接用IDA打开看即可。
+看下题目 运行看到题目列表：
+Challenge 1: Store 1337 at pointer 0x1337. Challenge 2: Make the &amp;#39;uname&amp;#39; syscall return the correct values. Challenge 3: Make &amp;#39;/dev/urandom&amp;#39; and &amp;#39;getrandom&amp;#39; &amp;#34;collide&amp;#34;. Challenge 4: Enter inside the &amp;#34;forbidden&amp;#34; loop. Challenge 5: Guess every call to rand(). Challenge 6: Avoid the infinite loop. Challenge 7: Don&amp;#39;t waste time waiting for &amp;#39;sleep&amp;#39;.</description>
+    </item>
+    
+  </channel>
+</rss>
