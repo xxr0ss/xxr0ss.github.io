@@ -8,3 +8,9 @@ publishDir = "docs"
     [params.homeInfoParams]
         title = "Hi there"
         Content = "大三 | 信息安全 | 逆向"
+
+[markup]
+  [markup.tableOfContents]
+    endLevel = 3
+    ordered = false
+    startLevel = 2
