@@ -11,9 +11,9 @@ QilingLab来源： [Shielder - QilingLab – Release](https://www.shielder.it/bl
 
 ## 题目样本
 
-[qilinglab-x86_64](hands_on_qiling_framework.assets/file/qilinglab-x86_64)
+[qilinglab-x86_64](https://www.shielder.it/attachments/qilinglab-x86_64)
 
-[qilinglab-aarch64](hands_on_qiling_framework.assets/file/qilinglab-aarch64)
+[qilinglab-aarch64](https://www.shielder.it/attachments/qilinglab-aarch64)
 
 ## 开始挑战！
 
