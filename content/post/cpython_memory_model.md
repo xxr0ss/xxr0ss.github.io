@@ -5,8 +5,6 @@ draft: false
 ShowToc: true
 ---
 
-# Python内存模型
-
 本文源码基于CPython 3.10
 
 Python实现了自己的内存管理，用以**加快内存操作**和**减少内存碎片化**。Python定义了一个阈值，小于等于这个阈值的小内存请求，由Python实现的这套内存管理来分配，大于则直接交给`malloc()`。
