@@ -6,7 +6,19 @@
     <description>Recent content on XX の Blog</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>zh-cn</language>
-    <lastBuildDate>Sun, 22 Aug 2021 08:57:42 +0800</lastBuildDate><atom:link href="https://xxr0ss.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Mon, 29 Nov 2021 02:00:00 +0800</lastBuildDate><atom:link href="https://xxr0ss.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>CPython内存模型</title>
+      <link>https://xxr0ss.github.io/post/cpython_memory_model/</link>
+      <pubDate>Mon, 29 Nov 2021 02:00:00 +0800</pubDate>
+      
+      <guid>https://xxr0ss.github.io/post/cpython_memory_model/</guid>
+      <description>Python内存模型 本文源码基于CPython 3.10
+Python实现了自己的内存管理，用以加快内存操作和减少内存碎片化。Python定义了一个阈值，小于等于这个阈值的小内存请求，由Python实现的这套内存管理来分配，大于则直接交给malloc()。
+// Objects/obmalloc.c #define SMALL_REQUEST_THRESHOLD 512 内存管理模型 Python的内存分配器分成如下层级
+Object-specific allocators _____ ______ ______ ________ [ int ] [ dict ] [ list ] ... [ string ] Python core | +3 | &amp;lt;----- Object-specific memory -----&amp;gt; | &amp;lt;-- Non-object memory --&amp;gt; | _______________________________ | | [ Python&amp;#39;s object allocator ] | | +2 | ####### Object memory ####### | &amp;lt;------ Internal buffers ------&amp;gt; | ______________________________________________________________ | [ Python&amp;#39;s raw memory allocator (PyMem_ API) ] | +1 | &amp;lt;----- Python memory (under PyMem manager&amp;#39;s control) ------&amp;gt; | | __________________________________________________________________ [ Underlying general-purpose allocator (ex: C library malloc) ] 0 | &amp;lt;------ Virtual memory allocated for the python process -------&amp;gt; | ========================================================================= _______________________________________________________________________ [ OS-specific Virtual Memory Manager (VMM) ] -1 | &amp;lt;--- Kernel dynamic storage allocation &amp;amp; management (page-based) ---&amp;gt; | __________________________________ __________________________________ [ ] [ ] -2 | &amp;lt;-- Physical memory: ROM/RAM --&amp;gt; | | &amp;lt;-- Secondary storage (swap) --&amp;gt; | 按Python内存模型，一个典型的调用过程如下：</description>
+    </item>
+    
     <item>
       <title>Python逆向初体验</title>
       <link>https://xxr0ss.github.io/post/reverse_python/</link>

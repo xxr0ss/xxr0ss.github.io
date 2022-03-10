@@ -131,6 +131,21 @@
 
 <article class="post-entry"> 
   <header class="entry-header">
+    <h2>CPython内存模型
+    </h2>
+  </header>
+  <section class="entry-content">
+    <p>Python内存模型 本文源码基于CPython 3.10
+Python实现了自己的内存管理，用以加快内存操作和减少内存碎片化。Python定义了一个阈值，小于等于这个阈值的小内存请求，由Python实现的这套内存管理来分配，大于则直接交给malloc()。
+// Objects/obmalloc.c #define SMALL_REQUEST_THRESHOLD 512 内存管理模型 Python的内存分配器分成如下层级
+Object-specific allocators _____ ______ ______ ________ [ int ] [ dict ] [ list ] ... [ string ] Python core | &#43;3 | &lt;----- Object-specific memory -----&gt; | &lt;-- Non-object memory --&gt; | _______________________________ | | [ Python&#39;s object allocator ] | | &#43;2 | ####### Object memory ####### | &lt;------ Internal buffers ------&gt; | ______________________________________________________________ | [ Python&#39;s raw memory allocator (PyMem_ API) ] | &#43;1 | &lt;----- Python memory (under PyMem manager&#39;s control) ------&gt; | | __________________________________________________________________ [ Underlying general-purpose allocator (ex: C library malloc) ] 0 | &lt;------ Virtual memory allocated for the python process -------&gt; | ========================================================================= _______________________________________________________________________ [ OS-specific Virtual Memory Manager (VMM) ] -1 | &lt;--- Kernel dynamic storage allocation &amp; management (page-based) ---&gt; | __________________________________ __________________________________ [ ] [ ] -2 | &lt;-- Physical memory: ROM/RAM --&gt; | | &lt;-- Secondary storage (swap) --&gt; | 按Python内存模型，一个典型的调用过程如下：...</p>
+  </section>
+  <footer class="entry-footer"><span title='2021-11-29 02:00:00 +0800 CST'>November 29, 2021</span></footer>
+  <a class="entry-link" aria-label="post link to CPython内存模型" href="https://xxr0ss.github.io/post/cpython_memory_model/"></a>
+</article>
+
+<article class="post-entry"> 
+  <header class="entry-header">
     <h2>Python逆向初体验
     </h2>
   </header>
