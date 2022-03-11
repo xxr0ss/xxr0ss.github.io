@@ -198,6 +198,26 @@ shiboken_simple  ├── bindings  │ ├── bindings.h  │ ├── bin
   <footer class="entry-footer"><span title='2021-03-15 16:06:53 +0800 CST'>March 15, 2021</span></footer>
   <a class="entry-link" aria-label="post link to 用Shiboken封装简单的C&#43;&#43;类，实现Python对C&#43;&#43;的调用" href="https://xxr0ss.github.io/post/wrap_cpp_with_shiboken_for_python/"></a>
 </article>
+
+<article class="post-entry"> 
+  <header class="entry-header">
+    <h2>QTabWidget/QTabBar的自定义关闭按钮实现 Python &amp; C&#43;&#43;
+    </h2>
+  </header>
+  <section class="entry-content">
+    <p>QTabWidget和QTabBar两个类的设计上，都提供了setTabIcon()用于设定指定一个页面（Tab）的图标。这个图标是很容易修改的。但是Tab如果是可关闭的，那么会显示一个关闭按钮。这个按钮的图标可以通过qss，也就是tabbar.setStyleSheet()实现： QTabBar::close-button{ image: url(url_to_image) } 当然，还有QTabBar::close-button::hover这样的可以用于进一步细化。更多内容就得去看style sheet的文档了。
+但如果，出于一些原因，我们非要通过qrc来实现呢，或者想要自定义这个按钮的绘制过程，要如何着手？答案是研究源码。 QTabWidget和QTabBar的文档里，我并没有看到提供了方便的函数用于实现我的这一想法。
+我本来是在使用PySide6时发现这个问题的，但是解决过程中，同时看了Qt的C&#43;&#43;实现部分和Python实现部分的源码，所以理论上无论你是用Python还是C&#43;&#43;在进行Qt开发，如果你碰到和我一样的问题，相信这篇文章能帮助到你。
+先说明两个类的关系，两个类都继承于QWidget，QTabWidget内部保存了一个QTabBar, 本身可以理解为组合了QTabBar和QStackedWidget，这一点源码中可以得到印证：
+class QTabWidgetPrivate : public QWidgetPrivate {  Q_DECLARE_PUBLIC(QTabWidget) public: 	// ...  QTabBar *tabs;  QStackedWidget *stack; 	// ... }; 由于上述关系，另外QTabWidget也提供public方法用于获取内部保存的QTabBar，所以后面就不提QTabWidget了，我们把关注点放在QTabBar上。
+QTabBar可以设置指定index的是否启用关闭按钮，可以使用setTabButton()来设置按钮。所以我们源码从这些线索顺着找，我机子上源码位置是D:\Qt\6.0.1\Src\qtbase\src\widgets\widgets\qtabbar.cpp 源码里QTabBar::insertTab()，QTabBar::setTabsClosable()内部使用了setTabButton()。可以看到源码里还一个CloseButton类继承自QAbstractButton类。（这里不放源码了，篇幅有限）
+分析两处调用过程，共同点在于：
+ setTabButton()使用了创建出来的CloseButton对象 CloseButton的ButtonPosition都来自QTabBar的 (ButtonPosition)style()-&gt;styleHint(QStyle::SH_TabBar_CloseButtonPosition, nullptr, this) 连接了CloseButton的clicked()信号和QTabBar的_q_closeTab()槽 第2点原因是，QTabBar可以设置关闭按钮位置，所以这里需要获取其位置。  既然有源码，我们照着改就行，我是PySide6进行开发，所以是进行C&#43;&#43;到Python的移植（我没有用别的命名，用的是和QTabBar里面一样的命名）：
+class CloseButton(QAbstractButton):  def __init__(self, parent: QWidget):  super(CloseButton, self).__init__(parent)  self.parent = parent  self.setFocusPolicy(Qt.NoFocus)  self.resize(self.sizeHint())  self.setEnabled(True)  self.clicked.connect(self.log_clicked)   @Slot()  def log_clicked(self):  print(&#39;Close Button clicked&#39;)   def sizeHint(self) -&gt; QSize:  self....</p>
+  </section>
+  <footer class="entry-footer"><span title='2021-02-19 10:53:46 +0800 CST'>February 19, 2021</span></footer>
+  <a class="entry-link" aria-label="post link to QTabWidget/QTabBar的自定义关闭按钮实现 Python &amp; C&#43;&#43;" href="https://xxr0ss.github.io/post/qtabclosebutton_diy_python_cpp/"></a>
+</article>
     </main>
     
 <footer class="footer">

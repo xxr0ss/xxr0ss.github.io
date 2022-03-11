@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>QTabWidget/QTabBar的自定义关闭按钮实现 Python &amp; C&#43;&#43; | XX の Blog</title>
+<meta name="keywords" content="" />
+<meta name="description" content="QTabWidget和QTabBar两个类的设计上，都提供了setTabIcon()用于设定指定一个页面（Tab）的图标。这个图标是很容易修改的。但是Tab如果是可关闭的，那么会显示一个关闭按钮。这个按钮的图标可以通过qss，也就是tabbar.setStyleSheet()实现： QTabBar::close-button{ image: url(url_to_image) } 当然，还有QTabBar::close-button::hover这样的可以用于进一步细化。更多内容就得去看style sheet的文档了。
+但如果，出于一些原因，我们非要通过qrc来实现呢，或者想要自定义这个按钮的绘制过程，要如何着手？答案是研究源码。 QTabWidget和QTabBar的文档里，我并没有看到提供了方便的函数用于实现我的这一想法。
+我本来是在使用PySide6时发现这个问题的，但是解决过程中，同时看了Qt的C&#43;&#43;实现部分和Python实现部分的源码，所以理论上无论你是用Python还是C&#43;&#43;在进行Qt开发，如果你碰到和我一样的问题，相信这篇文章能帮助到你。
+先说明两个类的关系，两个类都继承于QWidget，QTabWidget内部保存了一个QTabBar, 本身可以理解为组合了QTabBar和QStackedWidget，这一点源码中可以得到印证：
+class QTabWidgetPrivate : public QWidgetPrivate {  Q_DECLARE_PUBLIC(QTabWidget) public: 	// ...  QTabBar *tabs;  QStackedWidget *stack; 	// ... }; 由于上述关系，另外QTabWidget也提供public方法用于获取内部保存的QTabBar，所以后面就不提QTabWidget了，我们把关注点放在QTabBar上。
+QTabBar可以设置指定index的是否启用关闭按钮，可以使用setTabButton()来设置按钮。所以我们源码从这些线索顺着找，我机子上源码位置是D:\Qt\6.0.1\Src\qtbase\src\widgets\widgets\qtabbar.cpp 源码里QTabBar::insertTab()，QTabBar::setTabsClosable()内部使用了setTabButton()。可以看到源码里还一个CloseButton类继承自QAbstractButton类。（这里不放源码了，篇幅有限）
+分析两处调用过程，共同点在于：
+ setTabButton()使用了创建出来的CloseButton对象 CloseButton的ButtonPosition都来自QTabBar的 (ButtonPosition)style()-&gt;styleHint(QStyle::SH_TabBar_CloseButtonPosition, nullptr, this) 连接了CloseButton的clicked()信号和QTabBar的_q_closeTab()槽 第2点原因是，QTabBar可以设置关闭按钮位置，所以这里需要获取其位置。  既然有源码，我们照着改就行，我是PySide6进行开发，所以是进行C&#43;&#43;到Python的移植（我没有用别的命名，用的是和QTabBar里面一样的命名）：
+class CloseButton(QAbstractButton):  def __init__(self, parent: QWidget):  super(CloseButton, self).__init__(parent)  self.parent = parent  self.setFocusPolicy(Qt.NoFocus)  self.resize(self.sizeHint())  self.setEnabled(True)  self.clicked.connect(self.log_clicked)   @Slot()  def log_clicked(self):  print(&#39;Close Button clicked&#39;)   def sizeHint(self) -&gt; QSize:  self.">
+<meta name="author" content="">
+<link rel="canonical" href="https://xxr0ss.github.io/post/qtabclosebutton_diy_python_cpp/" />
+<link crossorigin="anonymous" href="/assets/css/stylesheet.min.7bdb1411b29ec9fed2b6395a081eabcb3262e7311bda855249d433c8b30a926e.css" integrity="sha256-e9sUEbKeyf7StjlaCB6ryzJi5zEb2oVSSdQzyLMKkm4=" rel="preload stylesheet" as="style">
+<script defer crossorigin="anonymous" src="/assets/js/highlight.min.4dcb3c4f38462f66c6b6137227726f5543cb934cca9788f041c087e374491df2.js" integrity="sha256-Tcs8TzhGL2bGthNyJ3JvVUPLk0zKl4jwQcCH43RJHfI="
+    onload="hljs.initHighlightingOnLoad();"></script>
+<link rel="icon" href="https://xxr0ss.github.io/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://xxr0ss.github.io/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://xxr0ss.github.io/favicon-32x32.png">
+<link rel="apple-touch-icon" href="https://xxr0ss.github.io/apple-touch-icon.png">
+<link rel="mask-icon" href="https://xxr0ss.github.io/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --hljs-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-track {
+                background: 0 0;
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-thumb {
+                border-color: var(--theme);
+            }
+        }
+
+    </style>
+</noscript><meta property="og:title" content="QTabWidget/QTabBar的自定义关闭按钮实现 Python &amp; C&#43;&#43;" />
+<meta property="og:description" content="QTabWidget和QTabBar两个类的设计上，都提供了setTabIcon()用于设定指定一个页面（Tab）的图标。这个图标是很容易修改的。但是Tab如果是可关闭的，那么会显示一个关闭按钮。这个按钮的图标可以通过qss，也就是tabbar.setStyleSheet()实现： QTabBar::close-button{ image: url(url_to_image) } 当然，还有QTabBar::close-button::hover这样的可以用于进一步细化。更多内容就得去看style sheet的文档了。
+但如果，出于一些原因，我们非要通过qrc来实现呢，或者想要自定义这个按钮的绘制过程，要如何着手？答案是研究源码。 QTabWidget和QTabBar的文档里，我并没有看到提供了方便的函数用于实现我的这一想法。
+我本来是在使用PySide6时发现这个问题的，但是解决过程中，同时看了Qt的C&#43;&#43;实现部分和Python实现部分的源码，所以理论上无论你是用Python还是C&#43;&#43;在进行Qt开发，如果你碰到和我一样的问题，相信这篇文章能帮助到你。
+先说明两个类的关系，两个类都继承于QWidget，QTabWidget内部保存了一个QTabBar, 本身可以理解为组合了QTabBar和QStackedWidget，这一点源码中可以得到印证：
+class QTabWidgetPrivate : public QWidgetPrivate {  Q_DECLARE_PUBLIC(QTabWidget) public: 	// ...  QTabBar *tabs;  QStackedWidget *stack; 	// ... }; 由于上述关系，另外QTabWidget也提供public方法用于获取内部保存的QTabBar，所以后面就不提QTabWidget了，我们把关注点放在QTabBar上。
+QTabBar可以设置指定index的是否启用关闭按钮，可以使用setTabButton()来设置按钮。所以我们源码从这些线索顺着找，我机子上源码位置是D:\Qt\6.0.1\Src\qtbase\src\widgets\widgets\qtabbar.cpp 源码里QTabBar::insertTab()，QTabBar::setTabsClosable()内部使用了setTabButton()。可以看到源码里还一个CloseButton类继承自QAbstractButton类。（这里不放源码了，篇幅有限）
+分析两处调用过程，共同点在于：
+ setTabButton()使用了创建出来的CloseButton对象 CloseButton的ButtonPosition都来自QTabBar的 (ButtonPosition)style()-&gt;styleHint(QStyle::SH_TabBar_CloseButtonPosition, nullptr, this) 连接了CloseButton的clicked()信号和QTabBar的_q_closeTab()槽 第2点原因是，QTabBar可以设置关闭按钮位置，所以这里需要获取其位置。  既然有源码，我们照着改就行，我是PySide6进行开发，所以是进行C&#43;&#43;到Python的移植（我没有用别的命名，用的是和QTabBar里面一样的命名）：
+class CloseButton(QAbstractButton):  def __init__(self, parent: QWidget):  super(CloseButton, self).__init__(parent)  self.parent = parent  self.setFocusPolicy(Qt.NoFocus)  self.resize(self.sizeHint())  self.setEnabled(True)  self.clicked.connect(self.log_clicked)   @Slot()  def log_clicked(self):  print(&#39;Close Button clicked&#39;)   def sizeHint(self) -&gt; QSize:  self." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://xxr0ss.github.io/post/qtabclosebutton_diy_python_cpp/" /><meta property="article:section" content="post" />
+<meta property="article:published_time" content="2021-02-19T10:53:46&#43;08:00" />
+<meta property="article:modified_time" content="2021-02-19T10:53:46&#43;08:00" />
+
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="QTabWidget/QTabBar的自定义关闭按钮实现 Python &amp; C&#43;&#43;"/>
+<meta name="twitter:description" content="QTabWidget和QTabBar两个类的设计上，都提供了setTabIcon()用于设定指定一个页面（Tab）的图标。这个图标是很容易修改的。但是Tab如果是可关闭的，那么会显示一个关闭按钮。这个按钮的图标可以通过qss，也就是tabbar.setStyleSheet()实现： QTabBar::close-button{ image: url(url_to_image) } 当然，还有QTabBar::close-button::hover这样的可以用于进一步细化。更多内容就得去看style sheet的文档了。
+但如果，出于一些原因，我们非要通过qrc来实现呢，或者想要自定义这个按钮的绘制过程，要如何着手？答案是研究源码。 QTabWidget和QTabBar的文档里，我并没有看到提供了方便的函数用于实现我的这一想法。
+我本来是在使用PySide6时发现这个问题的，但是解决过程中，同时看了Qt的C&#43;&#43;实现部分和Python实现部分的源码，所以理论上无论你是用Python还是C&#43;&#43;在进行Qt开发，如果你碰到和我一样的问题，相信这篇文章能帮助到你。
+先说明两个类的关系，两个类都继承于QWidget，QTabWidget内部保存了一个QTabBar, 本身可以理解为组合了QTabBar和QStackedWidget，这一点源码中可以得到印证：
+class QTabWidgetPrivate : public QWidgetPrivate {  Q_DECLARE_PUBLIC(QTabWidget) public: 	// ...  QTabBar *tabs;  QStackedWidget *stack; 	// ... }; 由于上述关系，另外QTabWidget也提供public方法用于获取内部保存的QTabBar，所以后面就不提QTabWidget了，我们把关注点放在QTabBar上。
+QTabBar可以设置指定index的是否启用关闭按钮，可以使用setTabButton()来设置按钮。所以我们源码从这些线索顺着找，我机子上源码位置是D:\Qt\6.0.1\Src\qtbase\src\widgets\widgets\qtabbar.cpp 源码里QTabBar::insertTab()，QTabBar::setTabsClosable()内部使用了setTabButton()。可以看到源码里还一个CloseButton类继承自QAbstractButton类。（这里不放源码了，篇幅有限）
+分析两处调用过程，共同点在于：
+ setTabButton()使用了创建出来的CloseButton对象 CloseButton的ButtonPosition都来自QTabBar的 (ButtonPosition)style()-&gt;styleHint(QStyle::SH_TabBar_CloseButtonPosition, nullptr, this) 连接了CloseButton的clicked()信号和QTabBar的_q_closeTab()槽 第2点原因是，QTabBar可以设置关闭按钮位置，所以这里需要获取其位置。  既然有源码，我们照着改就行，我是PySide6进行开发，所以是进行C&#43;&#43;到Python的移植（我没有用别的命名，用的是和QTabBar里面一样的命名）：
+class CloseButton(QAbstractButton):  def __init__(self, parent: QWidget):  super(CloseButton, self).__init__(parent)  self.parent = parent  self.setFocusPolicy(Qt.NoFocus)  self.resize(self.sizeHint())  self.setEnabled(True)  self.clicked.connect(self.log_clicked)   @Slot()  def log_clicked(self):  print(&#39;Close Button clicked&#39;)   def sizeHint(self) -&gt; QSize:  self."/>
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Posts",
+      "item": "https://xxr0ss.github.io/post/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "QTabWidget/QTabBar的自定义关闭按钮实现 Python \u0026 C++",
+      "item": "https://xxr0ss.github.io/post/qtabclosebutton_diy_python_cpp/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "QTabWidget/QTabBar的自定义关闭按钮实现 Python \u0026 C++",
+  "name": "QTabWidget\/QTabBar的自定义关闭按钮实现 Python \u0026 C\u002b\u002b",
+  "description": "QTabWidget和QTabBar两个类的设计上，都提供了setTabIcon()用于设定指定一个页面（Tab）的图标。这个图标是很容易修改的。但是Tab如果是可关闭的，那么会显示一个关闭按钮。这个按钮的图标可以通过qss，也就是tabbar.setStyleSheet()实现： QTabBar::close-button{ image: url(url_to_image) } 当然，还有QTabBar::close-button::hover这样的可以用于进一步细化。更多内容就得去看style sheet的文档了。\n但如果，出于一些原因，我们非要通过qrc来实现呢，或者想要自定义这个按钮的绘制过程，要如何着手？答案是研究源码。 QTabWidget和QTabBar的文档里，我并没有看到提供了方便的函数用于实现我的这一想法。\n我本来是在使用PySide6时发现这个问题的，但是解决过程中，同时看了Qt的C++实现部分和Python实现部分的源码，所以理论上无论你是用Python还是C++在进行Qt开发，如果你碰到和我一样的问题，相信这篇文章能帮助到你。\n先说明两个类的关系，两个类都继承于QWidget，QTabWidget内部保存了一个QTabBar, 本身可以理解为组合了QTabBar和QStackedWidget，这一点源码中可以得到印证：\nclass QTabWidgetPrivate : public QWidgetPrivate {  Q_DECLARE_PUBLIC(QTabWidget) public: \t// ...  QTabBar *tabs;  QStackedWidget *stack; \t// ... }; 由于上述关系，另外QTabWidget也提供public方法用于获取内部保存的QTabBar，所以后面就不提QTabWidget了，我们把关注点放在QTabBar上。\nQTabBar可以设置指定index的是否启用关闭按钮，可以使用setTabButton()来设置按钮。所以我们源码从这些线索顺着找，我机子上源码位置是D:\\Qt\\6.0.1\\Src\\qtbase\\src\\widgets\\widgets\\qtabbar.cpp 源码里QTabBar::insertTab()，QTabBar::setTabsClosable()内部使用了setTabButton()。可以看到源码里还一个CloseButton类继承自QAbstractButton类。（这里不放源码了，篇幅有限）\n分析两处调用过程，共同点在于：\n setTabButton()使用了创建出来的CloseButton对象 CloseButton的ButtonPosition都来自QTabBar的 (ButtonPosition)style()-\u0026gt;styleHint(QStyle::SH_TabBar_CloseButtonPosition, nullptr, this) 连接了CloseButton的clicked()信号和QTabBar的_q_closeTab()槽 第2点原因是，QTabBar可以设置关闭按钮位置，所以这里需要获取其位置。  既然有源码，我们照着改就行，我是PySide6进行开发，所以是进行C++到Python的移植（我没有用别的命名，用的是和QTabBar里面一样的命名）：\nclass CloseButton(QAbstractButton):  def __init__(self, parent: QWidget):  super(CloseButton, self).__init__(parent)  self.parent = parent  self.setFocusPolicy(Qt.NoFocus)  self.resize(self.sizeHint())  self.setEnabled(True)  self.clicked.connect(self.log_clicked)   @Slot()  def log_clicked(self):  print(\u0026#39;Close Button clicked\u0026#39;)   def sizeHint(self) -\u0026gt; QSize:  self.",
+  "keywords": [
+    
+  ],
+  "articleBody": "QTabWidget和QTabBar两个类的设计上，都提供了setTabIcon()用于设定指定一个页面（Tab）的图标。这个图标是很容易修改的。但是Tab如果是可关闭的，那么会显示一个关闭按钮。这个按钮的图标可以通过qss，也就是tabbar.setStyleSheet()实现： QTabBar::close-button{ image: url(url_to_image) } 当然，还有QTabBar::close-button::hover这样的可以用于进一步细化。更多内容就得去看style sheet的文档了。\n但如果，出于一些原因，我们非要通过qrc来实现呢，或者想要自定义这个按钮的绘制过程，要如何着手？答案是研究源码。 QTabWidget和QTabBar的文档里，我并没有看到提供了方便的函数用于实现我的这一想法。\n我本来是在使用PySide6时发现这个问题的，但是解决过程中，同时看了Qt的C++实现部分和Python实现部分的源码，所以理论上无论你是用Python还是C++在进行Qt开发，如果你碰到和我一样的问题，相信这篇文章能帮助到你。\n先说明两个类的关系，两个类都继承于QWidget，QTabWidget内部保存了一个QTabBar, 本身可以理解为组合了QTabBar和QStackedWidget，这一点源码中可以得到印证：\nclass QTabWidgetPrivate : public QWidgetPrivate {  Q_DECLARE_PUBLIC(QTabWidget) public: \t// ...  QTabBar *tabs;  QStackedWidget *stack; \t// ... }; 由于上述关系，另外QTabWidget也提供public方法用于获取内部保存的QTabBar，所以后面就不提QTabWidget了，我们把关注点放在QTabBar上。\nQTabBar可以设置指定index的是否启用关闭按钮，可以使用setTabButton()来设置按钮。所以我们源码从这些线索顺着找，我机子上源码位置是D:\\Qt\\6.0.1\\Src\\qtbase\\src\\widgets\\widgets\\qtabbar.cpp 源码里QTabBar::insertTab()，QTabBar::setTabsClosable()内部使用了setTabButton()。可以看到源码里还一个CloseButton类继承自QAbstractButton类。（这里不放源码了，篇幅有限）\n分析两处调用过程，共同点在于：\n setTabButton()使用了创建出来的CloseButton对象 CloseButton的ButtonPosition都来自QTabBar的 (ButtonPosition)style()-styleHint(QStyle::SH_TabBar_CloseButtonPosition, nullptr, this) 连接了CloseButton的clicked()信号和QTabBar的_q_closeTab()槽 第2点原因是，QTabBar可以设置关闭按钮位置，所以这里需要获取其位置。  既然有源码，我们照着改就行，我是PySide6进行开发，所以是进行C++到Python的移植（我没有用别的命名，用的是和QTabBar里面一样的命名）：\nclass CloseButton(QAbstractButton):  def __init__(self, parent: QWidget):  super(CloseButton, self).__init__(parent)  self.parent = parent  self.setFocusPolicy(Qt.NoFocus)  self.resize(self.sizeHint())  self.setEnabled(True)  self.clicked.connect(self.log_clicked)   @Slot()  def log_clicked(self):  print('Close Button clicked')   def sizeHint(self) - QSize:  self.ensurePolished()  width = self.style().pixelMetric(QStyle.PM_TabCloseIndicatorWidth, None, self)  height = self.style().pixelMetric(QStyle.PM_TabCloseIndicatorHeight, None, self)  return QSize(width, height)   def minimumSizeHint(self) - QSize:  return self.sizeHint()   def enterEvent(self, event: QEnterEvent) - None:  if self.isEnabled():  self.update()  QAbstractButton.enterEvent(self, event)   def leaveEvent(self, event: QEvent) - None:  if self.isEnabled():  self.update()  QAbstractButton.leaveEvent(self, event)   def paintEvent(self, event: QPaintEvent) - None:  option = QStyleOption()  option.initFrom(self)  if self.isEnabled() and self.underMouse() and not self.isCheckable() and not self.isDown():  option.state |= QStyle.State_Raised  if self.isChecked():  option.state |= QStyle.State_On  if self.isDown():  option.state |= QStyle.State_Sunken   tb: QTabBar = self.parent  if isinstance(tb, QTabBar):  index = tb.currentIndex()  position = TabsManager.side_enum[tb.style().styleHint(QStyle.SH_TabBar_CloseButtonPosition, None, tb)]  if tb.tabButton(index, position):  option.state |= QStyle.State_Selected   p = QPainter(self)  self.style_draw(option, p)   def style_draw(self, option: QStyleOption, p: QPainter):  # 移植PE_IndicatorTabClose的绘制逻辑, qcommonstyle.cpp里有个大switch-case对C++ QTabBar源码里面，CloseButton的paintEvent最后面的style()-drawPrimitive第一个参数就是处理这个，下面的代码相当于是移植了switch-case里PE_IndicatorTabClose的代码  size = self.style().proxy().pixelMetric(QStyle.PM_SmallIconSize, option)  mode: QIcon.Mode = (QIcon.Active if option.state \u0026 QStyle.State_Raised else QIcon.Normal) \\  if option.state \u0026 QStyle.State_Enabled else QIcon.Disabled  if not option.state \u0026 QStyle.State_Raised \\  and not option.state \u0026 QStyle.State_Sunken \\  and not option.state \u0026 QStyle.State_Selected:  mode = QIcon.Disabled   state: QIcon.State = QIcon.On if option.state \u0026 QStyle.State_Sunken else QIcon.Off  pixmap = CloseButton.tabBar_close_button_icon().pixmap(QSize(size, size), self.devicePixelRatio(), mode, state)  self.style().proxy().drawItemPixmap(p, option.rect, Qt.AlignCenter, pixmap)   @staticmethod  def tabBar_close_button_icon() - QIcon:  # qcommonstyle.cpp里获取Pixel的逻辑改了，现在这里的代码实现是用了我自己.qrc里的资源。  icon = QIcon()  # add  icon.addPixmap(QPixmap(':/default/icons/ui/closeButton.png'), QIcon.Normal, QIcon.Off)  icon.addPixmap(QPixmap(':/default/icons/ui/closeButton_down.png'), QIcon.Normal, QIcon.On)  icon.addPixmap(QPixmap(':/default/icons/ui/closeButton_hover.png'), QIcon.Active, QIcon.Off)  return icon 相当一部分是找到对应源码理解后去移植，参考到的源码大致有 D:\\Qt\\6.0.1\\Src\\qtbase\\src\\widgets\\widgets\\qtabbar.cpp D:\\Qt\\6.0.1\\Src\\qtbase\\src\\widgets\\styles\\qcommonstyle.cpp\n里面的TabsManager.side_enum是我定义的别的类用于对QTabWidget进行管理，内容是：\n side_enum = [QTabBar.ButtonPosition.LeftSide, QTabBar.ButtonPosition.RightSide] （不像C++里面枚举可以当成int，所以为了能调用必要的api，就手动把int转成对应的ButtonPosition）。 还有就是实现了自定义的close_button_icon，把几种状态的图标都加进去了（正常/hover/ down)。\n实现了自定义的CloseButton后，在添加Tab的时候，我编写的TabsManager里处理逻辑是：\n def add_editor_tab(self, widget: QWidget, title: str):  # automatically remove welcome page by default when opened new tab  if self._tabs.count() == 1:  if isinstance(self._tabs.widget(0), WelcomePage):  self._tabs.removeTab(0)  if isinstance(widget, CodeEditorWidget):  # mark tab as modified when content of editor changed  widget.content_status_changed.connect(  lambda need_saving: self.update_tab_status(widget, need_saving))   idx = self._tabs.addTab(widget, title)  self._tabs.setCurrentIndex(idx)   # use customized Close Button  close_side = self.side_enum[widget.style().styleHint(  QStyle.SH_TabBar_CloseButtonPosition, None, widget)]  self._tabs.tabBar().setTabButton(idx, close_side, btn := CloseButton(self._tabs.tabBar()))  btn.clicked.connect(self._q_closeTab)   def _q_closeTab(self):  # 模仿源码里进行的实现  btn: CloseButton = self.sender()  tab_bar: QTabBar = self.tabs.tabBar()  tab_to_close = -1  close_side = self.side_enum[tab_bar.style().styleHint(QStyle.SH_TabBar_CloseButtonPosition, None, tab_bar)]  for i in range(tab_bar.count()):  if tab_bar.tabButton(i, close_side) == btn:  tab_to_close = i  break  if tab_to_close != -1:  self._tabs.tabCloseRequested.emit(tab_to_close) 这里值得注意的点在最后我设置自定义CloseButton后，手动连接了自定义的CloseButton的clicked信号和QTabWidget的tabCloseRequest信号，必须要加上这一行。前面代码有提到那几步里面连接QTabBar的_q_closeTab()槽，我自己实现了一遍。\n总结一下自定义关闭按钮的过程：\n 照着源码根据自己需求编写自己的CloseButton  注意处理绘制逻辑 注意处理图标状态   在QTabBar/QTabWidget添加tab的时候，在这个位置（index）使用自定义的CloseButton  注意要连接clicked信号和tabCloseRequested信号    最后，分享一下这些代码涉及到的源码\n",
+  "wordCount" : "385",
+  "inLanguage": "en",
+  "datePublished": "2021-02-19T10:53:46+08:00",
+  "dateModified": "2021-02-19T10:53:46+08:00",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://xxr0ss.github.io/post/qtabclosebutton_diy_python_cpp/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "XX の Blog",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://xxr0ss.github.io/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+
+<body class="" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.body.classList.add('dark');
+    } else if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark');
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://xxr0ss.github.io/" accesskey="h" title="XX の Blog (Alt + H)">XX の Blog</a>
+            <span class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </span>
+        </div>
+        <ul id="menu">
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    
+    <h1 class="post-title">
+      QTabWidget/QTabBar的自定义关闭按钮实现 Python &amp; C&#43;&#43;
+    </h1>
+    <div class="post-meta"><span title='2021-02-19 10:53:46 +0800 CST'>February 19, 2021</span>
+
+</div>
+  </header> 
+
+  <div class="post-content"><p>QTabWidget和QTabBar两个类的设计上，都提供了<code>setTabIcon()</code>用于设定指定一个页面（Tab）的图标。这个图标是很容易修改的。但是Tab如果是可关闭的，那么会显示一个关闭按钮。这个按钮的图标可以通过qss，也就是<code>tabbar.setStyleSheet()</code>实现：
+<code>QTabBar::close-button{ image: url(url_to_image) }</code>
+当然，还有<code>QTabBar::close-button::hover</code>这样的可以用于进一步细化。更多内容就得去看style sheet的文档了。</p>
+<p>但如果，出于一些原因，我们非要通过qrc来实现呢，或者想要自定义这个按钮的绘制过程，要如何着手？答案是研究源码。
+<code>QTabWidget</code>和<code>QTabBar</code>的文档里，我并没有看到提供了方便的函数用于实现我的这一想法。</p>
+<p>我本来是在使用PySide6时发现这个问题的，但是解决过程中，同时看了Qt的C++实现部分和Python实现部分的源码，所以理论上无论你是用Python还是C++在进行Qt开发，如果你碰到和我一样的问题，相信这篇文章能帮助到你。</p>
+<p>先说明两个类的关系，两个类都继承于<code>QWidget</code>，<code>QTabWidget</code>内部保存了一个<code>QTabBar</code>, 本身可以理解为组合了<code>QTabBar</code>和<code>QStackedWidget</code>，这一点源码中可以得到印证：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-cpp" data-lang="cpp"><span style="display:flex;"><span><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">QTabWidgetPrivate</span> <span style="color:#f92672">:</span> <span style="color:#66d9ef">public</span> QWidgetPrivate
+</span></span><span style="display:flex;"><span>{
+</span></span><span style="display:flex;"><span>    Q_DECLARE_PUBLIC(QTabWidget)
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">public</span><span style="color:#f92672">:</span>
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">// ...
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    QTabBar <span style="color:#f92672">*</span>tabs;
+</span></span><span style="display:flex;"><span>    QStackedWidget <span style="color:#f92672">*</span>stack;
+</span></span><span style="display:flex;"><span>	<span style="color:#75715e">// ...
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>};
+</span></span></code></pre></div><p>由于上述关系，另外<code>QTabWidget</code>也提供public方法用于获取内部保存的<code>QTabBar</code>，所以后面就不提<code>QTabWidget</code>了，<strong>我们把关注点放在<code>QTabBar</code>上</strong>。</p>
+<p>QTabBar可以设置指定<code>index</code>的是否启用关闭按钮，可以使用<code>setTabButton()</code>来设置按钮。所以我们源码从这些线索顺着找，我机子上源码位置是<code>D:\Qt\6.0.1\Src\qtbase\src\widgets\widgets\qtabbar.cpp</code>
+源码里<code>QTabBar::insertTab()</code>，<code>QTabBar::setTabsClosable()</code>内部使用了<code>setTabButton()</code>。可以看到源码里还一个<code>CloseButton</code>类继承自<code>QAbstractButton</code>类。（这里不放源码了，篇幅有限）</p>
+<p>分析两处调用过程，<strong>共同点</strong>在于：</p>
+<ul>
+<li><code>setTabButton()</code>使用了创建出来的<code>CloseButton</code>对象</li>
+<li><code>CloseButton</code>的<code>ButtonPosition</code>都来自QTabBar的
+<code>(ButtonPosition)style()-&gt;styleHint(QStyle::SH_TabBar_CloseButtonPosition, nullptr, this)</code></li>
+<li>连接了<code>CloseButton</code>的<code>clicked()</code>信号和QTabBar的<code>_q_closeTab()</code>槽
+第2点原因是，QTabBar可以设置关闭按钮位置，所以这里需要获取其位置。</li>
+</ul>
+<p>既然有源码，我们照着改就行，我是PySide6进行开发，所以是进行C++到Python的移植（我没有用别的命名，用的是和<code>QTabBar</code>里面一样的命名）：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#66d9ef">class</span> <span style="color:#a6e22e">CloseButton</span>(QAbstractButton):
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">def</span> __init__(self, parent: QWidget):
+</span></span><span style="display:flex;"><span>        super(CloseButton, self)<span style="color:#f92672">.</span>__init__(parent)
+</span></span><span style="display:flex;"><span>        self<span style="color:#f92672">.</span>parent <span style="color:#f92672">=</span> parent
+</span></span><span style="display:flex;"><span>        self<span style="color:#f92672">.</span>setFocusPolicy(Qt<span style="color:#f92672">.</span>NoFocus)
+</span></span><span style="display:flex;"><span>        self<span style="color:#f92672">.</span>resize(self<span style="color:#f92672">.</span>sizeHint())
+</span></span><span style="display:flex;"><span>        self<span style="color:#f92672">.</span>setEnabled(<span style="color:#66d9ef">True</span>)
+</span></span><span style="display:flex;"><span>        self<span style="color:#f92672">.</span>clicked<span style="color:#f92672">.</span>connect(self<span style="color:#f92672">.</span>log_clicked)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">@Slot</span>()
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">log_clicked</span>(self):
+</span></span><span style="display:flex;"><span>        print(<span style="color:#e6db74">&#39;Close Button clicked&#39;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">sizeHint</span>(self) <span style="color:#f92672">-&gt;</span> QSize:
+</span></span><span style="display:flex;"><span>        self<span style="color:#f92672">.</span>ensurePolished()
+</span></span><span style="display:flex;"><span>        width <span style="color:#f92672">=</span> self<span style="color:#f92672">.</span>style()<span style="color:#f92672">.</span>pixelMetric(QStyle<span style="color:#f92672">.</span>PM_TabCloseIndicatorWidth, <span style="color:#66d9ef">None</span>, self)
+</span></span><span style="display:flex;"><span>        height <span style="color:#f92672">=</span> self<span style="color:#f92672">.</span>style()<span style="color:#f92672">.</span>pixelMetric(QStyle<span style="color:#f92672">.</span>PM_TabCloseIndicatorHeight, <span style="color:#66d9ef">None</span>, self)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> QSize(width, height)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">minimumSizeHint</span>(self) <span style="color:#f92672">-&gt;</span> QSize:
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> self<span style="color:#f92672">.</span>sizeHint()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">enterEvent</span>(self, event: QEnterEvent) <span style="color:#f92672">-&gt;</span> <span style="color:#66d9ef">None</span>:
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> self<span style="color:#f92672">.</span>isEnabled():
+</span></span><span style="display:flex;"><span>            self<span style="color:#f92672">.</span>update()
+</span></span><span style="display:flex;"><span>        QAbstractButton<span style="color:#f92672">.</span>enterEvent(self, event)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">leaveEvent</span>(self, event: QEvent) <span style="color:#f92672">-&gt;</span> <span style="color:#66d9ef">None</span>:
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> self<span style="color:#f92672">.</span>isEnabled():
+</span></span><span style="display:flex;"><span>            self<span style="color:#f92672">.</span>update()
+</span></span><span style="display:flex;"><span>        QAbstractButton<span style="color:#f92672">.</span>leaveEvent(self, event)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">paintEvent</span>(self, event: QPaintEvent) <span style="color:#f92672">-&gt;</span> <span style="color:#66d9ef">None</span>:
+</span></span><span style="display:flex;"><span>        option <span style="color:#f92672">=</span> QStyleOption()
+</span></span><span style="display:flex;"><span>        option<span style="color:#f92672">.</span>initFrom(self)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> self<span style="color:#f92672">.</span>isEnabled() <span style="color:#f92672">and</span> self<span style="color:#f92672">.</span>underMouse() <span style="color:#f92672">and</span> <span style="color:#f92672">not</span> self<span style="color:#f92672">.</span>isCheckable() <span style="color:#f92672">and</span> <span style="color:#f92672">not</span> self<span style="color:#f92672">.</span>isDown():
+</span></span><span style="display:flex;"><span>            option<span style="color:#f92672">.</span>state <span style="color:#f92672">|=</span> QStyle<span style="color:#f92672">.</span>State_Raised
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> self<span style="color:#f92672">.</span>isChecked():
+</span></span><span style="display:flex;"><span>            option<span style="color:#f92672">.</span>state <span style="color:#f92672">|=</span> QStyle<span style="color:#f92672">.</span>State_On
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> self<span style="color:#f92672">.</span>isDown():
+</span></span><span style="display:flex;"><span>            option<span style="color:#f92672">.</span>state <span style="color:#f92672">|=</span> QStyle<span style="color:#f92672">.</span>State_Sunken
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        tb: QTabBar <span style="color:#f92672">=</span> self<span style="color:#f92672">.</span>parent
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> isinstance(tb, QTabBar):
+</span></span><span style="display:flex;"><span>            index <span style="color:#f92672">=</span> tb<span style="color:#f92672">.</span>currentIndex()
+</span></span><span style="display:flex;"><span>            position <span style="color:#f92672">=</span> TabsManager<span style="color:#f92672">.</span>side_enum[tb<span style="color:#f92672">.</span>style()<span style="color:#f92672">.</span>styleHint(QStyle<span style="color:#f92672">.</span>SH_TabBar_CloseButtonPosition, <span style="color:#66d9ef">None</span>, tb)]
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span> tb<span style="color:#f92672">.</span>tabButton(index, position):
+</span></span><span style="display:flex;"><span>                option<span style="color:#f92672">.</span>state <span style="color:#f92672">|=</span> QStyle<span style="color:#f92672">.</span>State_Selected
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        p <span style="color:#f92672">=</span> QPainter(self)
+</span></span><span style="display:flex;"><span>        self<span style="color:#f92672">.</span>style_draw(option, p)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">style_draw</span>(self, option: QStyleOption, p: QPainter):
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># 移植PE_IndicatorTabClose的绘制逻辑, qcommonstyle.cpp里有个大switch-case对C++ QTabBar源码里面，CloseButton的paintEvent最后面的style()-&gt;drawPrimitive第一个参数就是处理这个，下面的代码相当于是移植了switch-case里PE_IndicatorTabClose的代码</span>
+</span></span><span style="display:flex;"><span>        size <span style="color:#f92672">=</span> self<span style="color:#f92672">.</span>style()<span style="color:#f92672">.</span>proxy()<span style="color:#f92672">.</span>pixelMetric(QStyle<span style="color:#f92672">.</span>PM_SmallIconSize, option)
+</span></span><span style="display:flex;"><span>        mode: QIcon<span style="color:#f92672">.</span>Mode <span style="color:#f92672">=</span> (QIcon<span style="color:#f92672">.</span>Active <span style="color:#66d9ef">if</span> option<span style="color:#f92672">.</span>state <span style="color:#f92672">&amp;</span> QStyle<span style="color:#f92672">.</span>State_Raised <span style="color:#66d9ef">else</span> QIcon<span style="color:#f92672">.</span>Normal) \
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span> option<span style="color:#f92672">.</span>state <span style="color:#f92672">&amp;</span> QStyle<span style="color:#f92672">.</span>State_Enabled <span style="color:#66d9ef">else</span> QIcon<span style="color:#f92672">.</span>Disabled
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> <span style="color:#f92672">not</span> option<span style="color:#f92672">.</span>state <span style="color:#f92672">&amp;</span> QStyle<span style="color:#f92672">.</span>State_Raised \
+</span></span><span style="display:flex;"><span>                <span style="color:#f92672">and</span> <span style="color:#f92672">not</span> option<span style="color:#f92672">.</span>state <span style="color:#f92672">&amp;</span> QStyle<span style="color:#f92672">.</span>State_Sunken \
+</span></span><span style="display:flex;"><span>                <span style="color:#f92672">and</span> <span style="color:#f92672">not</span> option<span style="color:#f92672">.</span>state <span style="color:#f92672">&amp;</span> QStyle<span style="color:#f92672">.</span>State_Selected:
+</span></span><span style="display:flex;"><span>            mode <span style="color:#f92672">=</span> QIcon<span style="color:#f92672">.</span>Disabled
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        state: QIcon<span style="color:#f92672">.</span>State <span style="color:#f92672">=</span> QIcon<span style="color:#f92672">.</span>On <span style="color:#66d9ef">if</span> option<span style="color:#f92672">.</span>state <span style="color:#f92672">&amp;</span> QStyle<span style="color:#f92672">.</span>State_Sunken <span style="color:#66d9ef">else</span> QIcon<span style="color:#f92672">.</span>Off
+</span></span><span style="display:flex;"><span>        pixmap <span style="color:#f92672">=</span> CloseButton<span style="color:#f92672">.</span>tabBar_close_button_icon()<span style="color:#f92672">.</span>pixmap(QSize(size, size), self<span style="color:#f92672">.</span>devicePixelRatio(), mode, state)
+</span></span><span style="display:flex;"><span>        self<span style="color:#f92672">.</span>style()<span style="color:#f92672">.</span>proxy()<span style="color:#f92672">.</span>drawItemPixmap(p, option<span style="color:#f92672">.</span>rect, Qt<span style="color:#f92672">.</span>AlignCenter, pixmap)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#a6e22e">@staticmethod</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">tabBar_close_button_icon</span>() <span style="color:#f92672">-&gt;</span> QIcon:
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># qcommonstyle.cpp里获取Pixel的逻辑改了，现在这里的代码实现是用了我自己.qrc里的资源。</span>
+</span></span><span style="display:flex;"><span>        icon <span style="color:#f92672">=</span> QIcon()
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># add</span>
+</span></span><span style="display:flex;"><span>        icon<span style="color:#f92672">.</span>addPixmap(QPixmap(<span style="color:#e6db74">&#39;:/default/icons/ui/closeButton.png&#39;</span>), QIcon<span style="color:#f92672">.</span>Normal, QIcon<span style="color:#f92672">.</span>Off)
+</span></span><span style="display:flex;"><span>        icon<span style="color:#f92672">.</span>addPixmap(QPixmap(<span style="color:#e6db74">&#39;:/default/icons/ui/closeButton_down.png&#39;</span>), QIcon<span style="color:#f92672">.</span>Normal, QIcon<span style="color:#f92672">.</span>On)
+</span></span><span style="display:flex;"><span>        icon<span style="color:#f92672">.</span>addPixmap(QPixmap(<span style="color:#e6db74">&#39;:/default/icons/ui/closeButton_hover.png&#39;</span>), QIcon<span style="color:#f92672">.</span>Active, QIcon<span style="color:#f92672">.</span>Off)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> icon
+</span></span></code></pre></div><p>相当一部分是找到对应源码理解后去移植，参考到的源码大致有
+<code>D:\Qt\6.0.1\Src\qtbase\src\widgets\widgets\qtabbar.cpp</code>
+<code>D:\Qt\6.0.1\Src\qtbase\src\widgets\styles\qcommonstyle.cpp</code></p>
+<p>里面的<code>TabsManager.side_enum</code>是我定义的别的类用于对QTabWidget进行管理，内容是：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>side_enum <span style="color:#f92672">=</span> [QTabBar<span style="color:#f92672">.</span>ButtonPosition<span style="color:#f92672">.</span>LeftSide, QTabBar<span style="color:#f92672">.</span>ButtonPosition<span style="color:#f92672">.</span>RightSide]
+</span></span></code></pre></div><p>（不像C++里面枚举可以当成int，所以为了能调用必要的api，就手动把<code>int</code>转成对应的<code>ButtonPosition</code>）。
+还有就是实现了自定义的<code>close_button_icon</code>，把几种状态的图标都加进去了（正常/hover/ down)。</p>
+<p>实现了自定义的<code>CloseButton</code>后，在添加Tab的时候，我编写的<code>TabsManager</code>里处理逻辑是：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span>    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">add_editor_tab</span>(self, widget: QWidget, title: str):
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># automatically remove welcome page by default when opened new tab</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> self<span style="color:#f92672">.</span>_tabs<span style="color:#f92672">.</span>count() <span style="color:#f92672">==</span> <span style="color:#ae81ff">1</span>:
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span> isinstance(self<span style="color:#f92672">.</span>_tabs<span style="color:#f92672">.</span>widget(<span style="color:#ae81ff">0</span>), WelcomePage):
+</span></span><span style="display:flex;"><span>                self<span style="color:#f92672">.</span>_tabs<span style="color:#f92672">.</span>removeTab(<span style="color:#ae81ff">0</span>)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> isinstance(widget, CodeEditorWidget):
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e"># mark tab as modified when content of editor changed</span>
+</span></span><span style="display:flex;"><span>            widget<span style="color:#f92672">.</span>content_status_changed<span style="color:#f92672">.</span>connect(
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">lambda</span> need_saving: self<span style="color:#f92672">.</span>update_tab_status(widget, need_saving))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        idx <span style="color:#f92672">=</span> self<span style="color:#f92672">.</span>_tabs<span style="color:#f92672">.</span>addTab(widget, title)
+</span></span><span style="display:flex;"><span>        self<span style="color:#f92672">.</span>_tabs<span style="color:#f92672">.</span>setCurrentIndex(idx)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e"># use customized Close Button</span>
+</span></span><span style="display:flex;"><span>        close_side <span style="color:#f92672">=</span> self<span style="color:#f92672">.</span>side_enum[widget<span style="color:#f92672">.</span>style()<span style="color:#f92672">.</span>styleHint(
+</span></span><span style="display:flex;"><span>            QStyle<span style="color:#f92672">.</span>SH_TabBar_CloseButtonPosition, <span style="color:#66d9ef">None</span>, widget)]
+</span></span><span style="display:flex;"><span>        self<span style="color:#f92672">.</span>_tabs<span style="color:#f92672">.</span>tabBar()<span style="color:#f92672">.</span>setTabButton(idx, close_side, btn <span style="color:#f92672">:=</span> CloseButton(self<span style="color:#f92672">.</span>_tabs<span style="color:#f92672">.</span>tabBar()))
+</span></span><span style="display:flex;"><span>        btn<span style="color:#f92672">.</span>clicked<span style="color:#f92672">.</span>connect(self<span style="color:#f92672">.</span>_q_closeTab)
+</span></span><span style="display:flex;"><span>        
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">def</span> <span style="color:#a6e22e">_q_closeTab</span>(self):
+</span></span><span style="display:flex;"><span>    	<span style="color:#75715e"># 模仿源码里进行的实现</span>
+</span></span><span style="display:flex;"><span>        btn: CloseButton <span style="color:#f92672">=</span> self<span style="color:#f92672">.</span>sender()
+</span></span><span style="display:flex;"><span>        tab_bar: QTabBar <span style="color:#f92672">=</span> self<span style="color:#f92672">.</span>tabs<span style="color:#f92672">.</span>tabBar()
+</span></span><span style="display:flex;"><span>        tab_to_close <span style="color:#f92672">=</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>
+</span></span><span style="display:flex;"><span>        close_side <span style="color:#f92672">=</span> self<span style="color:#f92672">.</span>side_enum[tab_bar<span style="color:#f92672">.</span>style()<span style="color:#f92672">.</span>styleHint(QStyle<span style="color:#f92672">.</span>SH_TabBar_CloseButtonPosition, <span style="color:#66d9ef">None</span>, tab_bar)]
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">for</span> i <span style="color:#f92672">in</span> range(tab_bar<span style="color:#f92672">.</span>count()):
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span> tab_bar<span style="color:#f92672">.</span>tabButton(i, close_side) <span style="color:#f92672">==</span> btn:
+</span></span><span style="display:flex;"><span>                tab_to_close <span style="color:#f92672">=</span> i
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">break</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> tab_to_close <span style="color:#f92672">!=</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>:
+</span></span><span style="display:flex;"><span>            self<span style="color:#f92672">.</span>_tabs<span style="color:#f92672">.</span>tabCloseRequested<span style="color:#f92672">.</span>emit(tab_to_close)
+</span></span></code></pre></div><p>这里值得注意的点在最后我设置自定义<code>CloseButton</code>后，手动连接了自定义的<code>CloseButton</code>的<code>clicked</code>信号和<code>QTabWidget</code>的<code>tabCloseRequest</code>信号，必须要加上这一行。前面代码有提到那几步里面连接<code>QTabBar</code>的<code>_q_closeTab()</code>槽，我自己实现了一遍。</p>
+<p>总结一下自定义关闭按钮的过程：</p>
+<ul>
+<li>照着源码根据自己需求编写自己的<code>CloseButton</code>
+<ul>
+<li>注意处理绘制逻辑</li>
+<li>注意处理图标状态</li>
+</ul>
+</li>
+<li>在<code>QTabBar</code>/<code>QTabWidget</code>添加tab的时候，在这个位置（<code>index</code>）使用自定义的<code>CloseButton</code>
+<ul>
+<li>注意要连接<code>clicked</code>信号和<code>tabCloseRequested</code>信号</li>
+</ul>
+</li>
+</ul>
+<p>最后，分享一下这些代码涉及到的<a href="https://github.com/xxr0ss/pyQEditor">源码</a></p>
+
+
+  </div>
+
+  <footer class="post-footer">
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+    <span>&copy; 2022 <a href="https://xxr0ss.github.io/">XX の Blog</a></span>
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://git.io/hugopapermod" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+</body>
+
+</html>
