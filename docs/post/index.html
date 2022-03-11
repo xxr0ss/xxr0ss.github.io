@@ -180,6 +180,24 @@ Challenge 1: Store 1337 at pointer 0x1337. Challenge 2: Make the &#39;uname&#39;
   <footer class="entry-footer"><span title='2021-08-19 02:03:42 +0800 CST'>August 19, 2021</span></footer>
   <a class="entry-link" aria-label="post link to 手把手Qiling Framework上手教程" href="https://xxr0ss.github.io/post/hands_on_qiling_framework/"></a>
 </article>
+
+<article class="post-entry"> 
+  <header class="entry-header">
+    <h2>用Shiboken封装简单的C&#43;&#43;类，实现Python对C&#43;&#43;的调用
+    </h2>
+  </header>
+  <section class="entry-content">
+    <p>Shiboken是Qt For Python实现的根基，它分析C&#43;&#43;代码抽取其中的信息，产生CPython代码，可以直接编译为python的模块，使得C/C&#43;&#43;代码能用在Python里面去。
+本文将介绍在Windows平台上，使用Shiboken6封装C&#43;&#43;的具体操作，以及刚开始接触Shiboken可能碰到的一些坑。
+Shiboken的基本使用逻辑  把该C&#43;&#43;项目编译成二进制文件（如Windows下是dll） 将现有需要导出给Python的C&#43;&#43;类声明在一个xml里，这个xml叫typesystem 利用这个xml和C&#43;&#43;项目的头文件，生成绑定代码，其中包含模块名_module_wrapper和导出要用的头文件（已在typesystem中定义好了）的类_wrapper 编译生成的wrapper代码，与先前生成的dll链接，生成.pyd（本质上是dll，可直接在python中import） 在Python中直接导入模块使用  下面介绍
+具体操作细节 环境准备 按照PySide6安装目录下官方提供的示例examples/samplebindings（例如，在我机器上是：D:\Python\Python39\Lib\site-packages\PySide6\examples\samplebinding)中的使用习惯，我们
+ 使用bindings.h保存要封装的C&#43;&#43;类的头文件，用binidngs.xml保存typesystem信息。 使用CMake和NMake进行项目构建编译等自动控制，请确保你电脑上安装了VS2019。  由于要使用nmake，所以需要使用x64 Native Tools Command Prompt for VS 2019，这个是随VS2019安装自动安装的，本质上就是执行了一个bat，让你的cmd环境变量里多了VS提供的一些开发工具（比如nmake    在这个示例的目录下，如你所见，官方提供了两个示例，一个是samplebindings，演示如何封装简单的C&#43;&#43;类；另一个是widgetbinding，演示如何封装Qt库，需要你机器上装了Qt开发环境。 本文使用我自己提供的一份示例代码，演示如何封装C&#43;&#43;类，算是对官方示例的对照和补充吧。可从我的GitHub仓库下载： shiboken6_demo
+文件结构：
+shiboken_simple  ├── bindings  │ ├── bindings.h  │ ├── bindings.xml  │ ├── pyside_config.py  │ └── wrap_src_gen.py  ├── build  ├── CMakeLists.txt  └── math  ├── CMakeLists.txt  ├── mathematician.cpp  └── mathematician....</p>
+  </section>
+  <footer class="entry-footer"><span title='2021-03-15 16:06:53 +0800 CST'>March 15, 2021</span></footer>
+  <a class="entry-link" aria-label="post link to 用Shiboken封装简单的C&#43;&#43;类，实现Python对C&#43;&#43;的调用" href="https://xxr0ss.github.io/post/wrap_cpp_with_shiboken_for_python/"></a>
+</article>
     </main>
     
 <footer class="footer">
