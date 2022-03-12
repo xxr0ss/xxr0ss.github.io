@@ -6,7 +6,20 @@
     <description>Recent content on XX の Blog</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>zh-cn</language>
-    <lastBuildDate>Mon, 29 Nov 2021 02:00:00 +0800</lastBuildDate><atom:link href="https://xxr0ss.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Sat, 12 Mar 2022 15:56:44 +0800</lastBuildDate><atom:link href="https://xxr0ss.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Import_so_to_existing_android_project</title>
+      <link>https://xxr0ss.github.io/post/import_so_to_existing_android_project/</link>
+      <pubDate>Sat, 12 Mar 2022 15:56:44 +0800</pubDate>
+      
+      <guid>https://xxr0ss.github.io/post/import_so_to_existing_android_project/</guid>
+      <description>title: &amp;ldquo;引入so文件到现有Android项目&amp;rdquo; date: 2022-03-12T15:44:50+08:00 ShowToc: true 这里介绍一种如下情况下，将so导入到Android项目的方法：
+ 仅提供了JNI接口的so 一个常规的Android项目，在Android Studio上，使用Gradle进行构建。  为了方便演示，我们直接在Android Studio新建一个Native工程叫testso，这个工程只是用来方便我们创建so的，编译出来的apk我们不需要，我们的目的是将apk中的libtestso.so提取出来，并假设我们只有so，将其导入到一个Android项目中。
+提供so Native代码 编写了一个究极简单的函数。
+#include &amp;lt;jni.h&amp;gt;#include &amp;lt;string&amp;gt; extern &amp;#34;C&amp;#34; JNIEXPORT jint JNICALL Java_com_xxr0ss_TestSo_addJNI(JNIEnv *env, jobject thiz, jint a, jint b) {  return a + b; } 对应的kotlin代码 其实我是先创建的这个，然后Android Studio能提示addJNI不存在，方便地自动在cpp/native-lib.cpp里生成函数，避免我们写错JNI函数声明。
+package com.xxr0ss;  class TestSo {   external fun addJNI(a: Int, b: Int): Int   companion object {  init {  System.loadLibrary(&amp;#34;testso&amp;#34;)  }  } } 准备完毕 lib  ├── arm64-v8a  │ └── libtestso.</description>
+    </item>
+    
     <item>
       <title>CPython内存模型</title>
       <link>https://xxr0ss.github.io/post/cpython_memory_model/</link>
