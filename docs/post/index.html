@@ -131,6 +131,27 @@
 
 <article class="post-entry"> 
   <header class="entry-header">
+    <h2>Frida检测手段探究
+    </h2>
+  </header>
+  <section class="entry-content">
+    <p>NOTICE: 本文提到的手段的代码实现在我的代码库xxr0ss/AntiFrida中， 不详细之处，请参照代码实现。
+来看看Frida工作的过程 OSDC 2015: The engineering behind the reverse engineering (PDF · Recording)
+概括来说就是，frida-agent是frida实现注入时，注入进程的模块，和frida-server通信完成frida的功能。
+在frida注入模式不可用时，我们还可以通过frida-gadget来完成插桩工作，有如下几种实现方式：
+  修改程序源码使其加载frida-agent
+  Patch程序或程序加载的库
+  使用一些动态链接的特性，比如LD_PRELOAD和DYLD_INSERT_LIBRARIES
+  检查frida-server默认端口占用 创建socket去连接指定端口（27042），如果frida-server在默认端口下运行，则可以连接成功。
+缺陷是frida-server可以直接指定端口
+frida-server -l 127.0.0.1:2333 Native代码 extern &#34;C&#34; JNIEXPORT jboolean JNICALL Java_com_xxr0ss_antifrida_utils_AntiFridaUtil_checkFridaByPort(JNIEnv *env, jobject thiz,  jint port) {  struct sockaddr_in sa{};  sa.sin_family = AF_INET;  sa.sin_port = htons(port);  inet_aton(&#34;127.0.0.1&#34;, &amp;sa.sin_addr);  int sock = socket(AF_INET, SOCK_STREAM, 0);   if (connect(sock, (struct sockaddr *) &amp;sa, sizeof(sa)) == 0) {  // we can connect to frida-server when it&#39;s running  close(sock);  return JNI_TRUE;  }   return JNI_FALSE; } 注意 需要在AndroidManifest....</p>
+  </section>
+  <footer class="entry-footer"><span title='2022-04-02 20:12:08 +0800 CST'>April 2, 2022</span></footer>
+  <a class="entry-link" aria-label="post link to Frida检测手段探究" href="https://xxr0ss.github.io/post/frida_detection/"></a>
+</article>
+
+<article class="post-entry"> 
+  <header class="entry-header">
     <h2>Import_so_to_existing_android_project
     </h2>
   </header>

@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en" dir="auto">
+
+<head><meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="robots" content="index, follow">
+<title>Frida检测手段探究 | XX の Blog</title>
+<meta name="keywords" content="" />
+<meta name="description" content="NOTICE: 本文提到的手段的代码实现在我的代码库xxr0ss/AntiFrida中， 不详细之处，请参照代码实现。
+来看看Frida工作的过程 OSDC 2015: The engineering behind the reverse engineering (PDF · Recording)
+概括来说就是，frida-agent是frida实现注入时，注入进程的模块，和frida-server通信完成frida的功能。
+在frida注入模式不可用时，我们还可以通过frida-gadget来完成插桩工作，有如下几种实现方式：
+  修改程序源码使其加载frida-agent
+  Patch程序或程序加载的库
+  使用一些动态链接的特性，比如LD_PRELOAD和DYLD_INSERT_LIBRARIES
+  检查frida-server默认端口占用 创建socket去连接指定端口（27042），如果frida-server在默认端口下运行，则可以连接成功。
+缺陷是frida-server可以直接指定端口
+frida-server -l 127.0.0.1:2333 Native代码 extern &#34;C&#34; JNIEXPORT jboolean JNICALL Java_com_xxr0ss_antifrida_utils_AntiFridaUtil_checkFridaByPort(JNIEnv *env, jobject thiz,  jint port) {  struct sockaddr_in sa{};  sa.sin_family = AF_INET;  sa.sin_port = htons(port);  inet_aton(&#34;127.0.0.1&#34;, &amp;sa.sin_addr);  int sock = socket(AF_INET, SOCK_STREAM, 0);   if (connect(sock, (struct sockaddr *) &amp;sa, sizeof(sa)) == 0) {  // we can connect to frida-server when it&#39;s running  close(sock);  return JNI_TRUE;  }   return JNI_FALSE; } 注意 需要在AndroidManifest.">
+<meta name="author" content="">
+<link rel="canonical" href="https://xxr0ss.github.io/post/frida_detection/" />
+<link crossorigin="anonymous" href="/assets/css/stylesheet.min.7bdb1411b29ec9fed2b6395a081eabcb3262e7311bda855249d433c8b30a926e.css" integrity="sha256-e9sUEbKeyf7StjlaCB6ryzJi5zEb2oVSSdQzyLMKkm4=" rel="preload stylesheet" as="style">
+<script defer crossorigin="anonymous" src="/assets/js/highlight.min.4dcb3c4f38462f66c6b6137227726f5543cb934cca9788f041c087e374491df2.js" integrity="sha256-Tcs8TzhGL2bGthNyJ3JvVUPLk0zKl4jwQcCH43RJHfI="
+    onload="hljs.initHighlightingOnLoad();"></script>
+<link rel="icon" href="https://xxr0ss.github.io/favicon.ico">
+<link rel="icon" type="image/png" sizes="16x16" href="https://xxr0ss.github.io/favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="https://xxr0ss.github.io/favicon-32x32.png">
+<link rel="apple-touch-icon" href="https://xxr0ss.github.io/apple-touch-icon.png">
+<link rel="mask-icon" href="https://xxr0ss.github.io/safari-pinned-tab.svg">
+<meta name="theme-color" content="#2e2e33">
+<meta name="msapplication-TileColor" content="#2e2e33">
+<noscript>
+    <style>
+        #theme-toggle,
+        .top-link {
+            display: none;
+        }
+
+    </style>
+    <style>
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --theme: rgb(29, 30, 32);
+                --entry: rgb(46, 46, 51);
+                --primary: rgb(218, 218, 219);
+                --secondary: rgb(155, 156, 157);
+                --tertiary: rgb(65, 66, 68);
+                --content: rgb(196, 196, 197);
+                --hljs-bg: rgb(46, 46, 51);
+                --code-bg: rgb(55, 56, 62);
+                --border: rgb(51, 51, 51);
+            }
+
+            .list {
+                background: var(--theme);
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-track {
+                background: 0 0;
+            }
+
+            .list:not(.dark)::-webkit-scrollbar-thumb {
+                border-color: var(--theme);
+            }
+        }
+
+    </style>
+</noscript><meta property="og:title" content="Frida检测手段探究" />
+<meta property="og:description" content="NOTICE: 本文提到的手段的代码实现在我的代码库xxr0ss/AntiFrida中， 不详细之处，请参照代码实现。
+来看看Frida工作的过程 OSDC 2015: The engineering behind the reverse engineering (PDF · Recording)
+概括来说就是，frida-agent是frida实现注入时，注入进程的模块，和frida-server通信完成frida的功能。
+在frida注入模式不可用时，我们还可以通过frida-gadget来完成插桩工作，有如下几种实现方式：
+  修改程序源码使其加载frida-agent
+  Patch程序或程序加载的库
+  使用一些动态链接的特性，比如LD_PRELOAD和DYLD_INSERT_LIBRARIES
+  检查frida-server默认端口占用 创建socket去连接指定端口（27042），如果frida-server在默认端口下运行，则可以连接成功。
+缺陷是frida-server可以直接指定端口
+frida-server -l 127.0.0.1:2333 Native代码 extern &#34;C&#34; JNIEXPORT jboolean JNICALL Java_com_xxr0ss_antifrida_utils_AntiFridaUtil_checkFridaByPort(JNIEnv *env, jobject thiz,  jint port) {  struct sockaddr_in sa{};  sa.sin_family = AF_INET;  sa.sin_port = htons(port);  inet_aton(&#34;127.0.0.1&#34;, &amp;sa.sin_addr);  int sock = socket(AF_INET, SOCK_STREAM, 0);   if (connect(sock, (struct sockaddr *) &amp;sa, sizeof(sa)) == 0) {  // we can connect to frida-server when it&#39;s running  close(sock);  return JNI_TRUE;  }   return JNI_FALSE; } 注意 需要在AndroidManifest." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://xxr0ss.github.io/post/frida_detection/" /><meta property="article:section" content="post" />
+<meta property="article:published_time" content="2022-04-02T20:12:08&#43;08:00" />
+<meta property="article:modified_time" content="2022-04-02T20:12:08&#43;08:00" />
+
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Frida检测手段探究"/>
+<meta name="twitter:description" content="NOTICE: 本文提到的手段的代码实现在我的代码库xxr0ss/AntiFrida中， 不详细之处，请参照代码实现。
+来看看Frida工作的过程 OSDC 2015: The engineering behind the reverse engineering (PDF · Recording)
+概括来说就是，frida-agent是frida实现注入时，注入进程的模块，和frida-server通信完成frida的功能。
+在frida注入模式不可用时，我们还可以通过frida-gadget来完成插桩工作，有如下几种实现方式：
+  修改程序源码使其加载frida-agent
+  Patch程序或程序加载的库
+  使用一些动态链接的特性，比如LD_PRELOAD和DYLD_INSERT_LIBRARIES
+  检查frida-server默认端口占用 创建socket去连接指定端口（27042），如果frida-server在默认端口下运行，则可以连接成功。
+缺陷是frida-server可以直接指定端口
+frida-server -l 127.0.0.1:2333 Native代码 extern &#34;C&#34; JNIEXPORT jboolean JNICALL Java_com_xxr0ss_antifrida_utils_AntiFridaUtil_checkFridaByPort(JNIEnv *env, jobject thiz,  jint port) {  struct sockaddr_in sa{};  sa.sin_family = AF_INET;  sa.sin_port = htons(port);  inet_aton(&#34;127.0.0.1&#34;, &amp;sa.sin_addr);  int sock = socket(AF_INET, SOCK_STREAM, 0);   if (connect(sock, (struct sockaddr *) &amp;sa, sizeof(sa)) == 0) {  // we can connect to frida-server when it&#39;s running  close(sock);  return JNI_TRUE;  }   return JNI_FALSE; } 注意 需要在AndroidManifest."/>
+
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position":  1 ,
+      "name": "Posts",
+      "item": "https://xxr0ss.github.io/post/"
+    }, 
+    {
+      "@type": "ListItem",
+      "position":  2 ,
+      "name": "Frida检测手段探究",
+      "item": "https://xxr0ss.github.io/post/frida_detection/"
+    }
+  ]
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "Frida检测手段探究",
+  "name": "Frida检测手段探究",
+  "description": "NOTICE: 本文提到的手段的代码实现在我的代码库xxr0ss/AntiFrida中， 不详细之处，请参照代码实现。\n来看看Frida工作的过程 OSDC 2015: The engineering behind the reverse engineering (PDF · Recording)\n概括来说就是，frida-agent是frida实现注入时，注入进程的模块，和frida-server通信完成frida的功能。\n在frida注入模式不可用时，我们还可以通过frida-gadget来完成插桩工作，有如下几种实现方式：\n  修改程序源码使其加载frida-agent\n  Patch程序或程序加载的库\n  使用一些动态链接的特性，比如LD_PRELOAD和DYLD_INSERT_LIBRARIES\n  检查frida-server默认端口占用 创建socket去连接指定端口（27042），如果frida-server在默认端口下运行，则可以连接成功。\n缺陷是frida-server可以直接指定端口\nfrida-server -l 127.0.0.1:2333 Native代码 extern \u0026#34;C\u0026#34; JNIEXPORT jboolean JNICALL Java_com_xxr0ss_antifrida_utils_AntiFridaUtil_checkFridaByPort(JNIEnv *env, jobject thiz,  jint port) {  struct sockaddr_in sa{};  sa.sin_family = AF_INET;  sa.sin_port = htons(port);  inet_aton(\u0026#34;127.0.0.1\u0026#34;, \u0026amp;sa.sin_addr);  int sock = socket(AF_INET, SOCK_STREAM, 0);   if (connect(sock, (struct sockaddr *) \u0026amp;sa, sizeof(sa)) == 0) {  // we can connect to frida-server when it\u0026#39;s running  close(sock);  return JNI_TRUE;  }   return JNI_FALSE; } 注意 需要在AndroidManifest.",
+  "keywords": [
+    
+  ],
+  "articleBody": "NOTICE: 本文提到的手段的代码实现在我的代码库xxr0ss/AntiFrida中， 不详细之处，请参照代码实现。\n来看看Frida工作的过程 OSDC 2015: The engineering behind the reverse engineering (PDF · Recording)\n概括来说就是，frida-agent是frida实现注入时，注入进程的模块，和frida-server通信完成frida的功能。\n在frida注入模式不可用时，我们还可以通过frida-gadget来完成插桩工作，有如下几种实现方式：\n  修改程序源码使其加载frida-agent\n  Patch程序或程序加载的库\n  使用一些动态链接的特性，比如LD_PRELOAD和DYLD_INSERT_LIBRARIES\n  检查frida-server默认端口占用 创建socket去连接指定端口（27042），如果frida-server在默认端口下运行，则可以连接成功。\n缺陷是frida-server可以直接指定端口\nfrida-server -l 127.0.0.1:2333 Native代码 extern \"C\" JNIEXPORT jboolean JNICALL Java_com_xxr0ss_antifrida_utils_AntiFridaUtil_checkFridaByPort(JNIEnv *env, jobject thiz,  jint port) {  struct sockaddr_in sa{};  sa.sin_family = AF_INET;  sa.sin_port = htons(port);  inet_aton(\"127.0.0.1\", \u0026sa.sin_addr);  int sock = socket(AF_INET, SOCK_STREAM, 0);   if (connect(sock, (struct sockaddr *) \u0026sa, sizeof(sa)) == 0) {  // we can connect to frida-server when it's running  close(sock);  return JNI_TRUE;  }   return JNI_FALSE; } 注意 需要在AndroidManifest.xml中添加网络权限\n android:name=\"android.permission.INTERNET\" / 检查进程内存模块是否存在frida模块 也就是要检测frida-agent和frida-gadget的存在。在哪检测呢？答案是/proc/self/maps  Linux下存在一个伪文件系统/proc，可用通过/proc/来访问指定进程的各种信息。把pid换成self，进程就可以读取自身信息。\nmaps中包含进程内存地址空间映射信息\nJava层 以Kotlin为例，直接读取/proc/self/maps，看看当前进程地址空间是不是包含frida-agent\nfun readProcMaps(): String {  try{  val mapsFile = File(\"/proc/self/maps\")  return mapsFile.readText()  }catch (e: Exception) {  Log.e(TAG, e.stackTraceToString())  }  return \"\" } Native层 说一下项目文件结构，不然后面容易迷惑\nmain ├── AndroidManifest.xml ├── cpp │ ├── antifrida.cpp │ ├── bionic_asm.h │ ├── CMakeLists.txt │ └── syscall.S ├── java └── res 和前面一样，也是读取/proc/self/maps，不过这层的便利之处在于：\n  可以自行实现系统调用，一定程度上规避hook\n  可以直接扫描内存中的模块是否存在特定字符串，避免frida模块通过改个名就绕过\n  最简单的写法，其实就是循环读取文件，然后检查关键字\nchar line[512]; FILE* fp; fp = fopen(\"/proc/self/maps\", \"r\"); if (fp) {  while (fgets(line, 512, fp)) {  if (strstr(line, \"frida\")) {  /* Evil library is loaded. Do something… */  }  }  fclose(fp);  } else {  /* Error opening /proc/self/maps. If this happens, something is off. */  } } 但这里我想要实现将maps内容返回Java层，所以实现稍微复杂了一点点。\nJNIEXPORT jstring JNICALL Java_com_xxr0ss_antifrida_utils_AntiFridaUtil_nativeReadProcMaps(JNIEnv *env, jobject thiz,  jboolean useCustomizedSyscall) {  char *data = nullptr;  size_t data_size = 0;   int res = read_pseudo_file_at(MAPS_FILE, \u0026data, \u0026data_size, useCustomizedSyscall);  if (res == -1) {  __android_log_print(ANDROID_LOG_ERROR, TAG,  \"read_pseudo_file %s failed, errno %s: %d\",  MAPS_FILE, strerror(errno), errno);  if (data) {  free(data);  }  return nullptr;  } else if (res == 0) {  __android_log_print(ANDROID_LOG_INFO, TAG, \"read_pseudo_file had read 0 bytes\");  if (data) {  free(data);  }  return nullptr;  }  jstring str = env-NewStringUTF(data);  free(data);  return str; } read_pseudo_file_at()的实现：\n  openat()打开文件\n  read()读取文件\n  动态增长内存以读入文件\n  /* Read pseudo files in paths like /proc /sys * *buf_ptr can be existing dynamic memory or nullptr (if so, this function * will alloc memory automatically). * remember to free the *buf_ptr because in no cases will *buf_ptr be * freed inside this function * return -1 on error, or non-negative value on success * */ int read_pseudo_file_at(const char *path, char **buf_ptr, size_t *buf_size_ptr,  bool use_customized_syscalls) {  if (!path || !*path || !buf_ptr || !buf_size_ptr) {  errno = EINVAL;  return -1;  }   char *buf;  size_t buf_size, total_read_size = 0;   /* Existing dynamic buffer, or a new buffer? */  buf_size = *buf_size_ptr;  if (!buf_size)  *buf_ptr = nullptr;  buf = *buf_ptr;   /* Open pseudo file */  int fd = use_customized_syscalls ?  my_openat(AT_FDCWD, MAPS_FILE, O_RDONLY | O_CLOEXEC, 0)  : openat(AT_FDCWD, MAPS_FILE, O_RDONLY | O_CLOEXEC, 0);   if (fd == -1) {  __android_log_print(ANDROID_LOG_INFO, TAG, \"openat error %s : %d\", strerror(errno), errno);  return -1;  }   while (true) {  if (total_read_size = buf_size) {  /* linear size growth * buf_size grow ~4k bytes each time, 32 bytes for zero padding * */  buf_size = (total_read_size | 4095) + 4097 - 32;  buf = (char *) realloc(buf, buf_size);  if (!buf) {  close(fd);  errno = ENOMEM;  return -1;  }  *buf_ptr = buf;  *buf_size_ptr = buf_size;  }   size_t n = use_customized_syscalls ?  my_read(fd, buf + total_read_size, buf_size - total_read_size)  : read(fd, buf + total_read_size,  buf_size - total_read_size);  if (n  0) {  total_read_size += n;  } else if (n == 0) {  break;  } else if (n == -1) {  const int saved_errno = errno;  close(fd);  errno = saved_errno;  return -1;  }  }   if (close(fd) == -1) {  /* errno set by close(). */  return -1;  }   if (total_read_size + 32  buf_size)  memset(buf + total_read_size, 0, 32);  else  memset(buf + total_read_size, 0, buf_size - total_read_size);   errno = 0;  return (int)total_read_size; } use_customized_syscalls指定是否使用自己实现的系统调用。\n系统调用的自定义实现 Syscall在Android上的实现可以参照Gityuan博客\n 在用户空间和内核空间之间，有一个叫做Syscall(系统调用, system call)的中间层，是连接用户态和内核态的桥梁。这样即提高了内核的安全型，也便于移植，只需实现同一套接口即可。Linux系统，用户空间通过向内核空间发出Syscall，产生软中断，从而让程序陷入内核态，执行相应的操作。\n 但是这篇文章稍微有点老，提到的源码路径有变化，在现在的Android 12上涉及的源码如下\ncommon/include/uapi/asm-generic/unistd.h # 包含调用号 bionic/libc/bionic/__set_errno.cpp # 包含设置errno的代码 bionic/libc/tools/gensyscalls.py # 用于生成不同架构下的syscall汇编代码 cs.android.com上可查阅\n自行实现系统调用的过程 CMakeLists.txt中启用汇编\nset(can_use_assembler TRUE) enable_language(ASM) 复制和修改Android源码bionic/libc/private/bionic_asm.h到我们项目中\n/* https://github.com/android/ndk/issues/1422 */ - #include  + // 去掉这个导入，否则我们的汇编代码会无法编译，原因就是源码中给出的这个issue，是个NDK的bug // ... - #if defined(__aarch64__) - #include  - #elif defined(__arm__) - #include  - #elif defined(__i386__) - #include  - #elif defined(__x86_64__) - #include  - #endif + // 前面这些其实目的就是为了下面这个 + #define __bionic_asm_align 16 参照源码中bionic/libc/tools/gensyscalls.py脚本的代码：\nsyscall_stub_header = \\ \"\"\" ENTRY(%(func)s) \"\"\"  arm64_call = syscall_stub_header + \"\"\"\\ mov x8, %(__NR_name)ssvc #0 cmn x0, #(MAX_ERRNO + 1) cneg x0, x0, hi b.hi __set_errno_internal ret END(%(func)s) \"\"\"  x86_64_call = \"\"\"\\ movl $%(__NR_name)s, %%eax syscall cmpq $-MAX_ERRNO, %%rax jb 1f negl %%eax movl %%eax, %%edi call __set_errno_internal 1: ret END(%(func)s) \"\"\" 编写汇编代码\n#include \"bionic_asm.h\" // 我们修改过的版本 #if defined(__aarch64__)  ENTRY(my_read)  mov x8, __NR_read  svc #0  cmn x0, #(MAX_ERRNO + 1)  cneg x0, x0, hi  b.hi __set_errno_internal  ret END(my_read)  // ... #endif 汇编代码里的__set_errno_internal我们自行进行实现\nantifrida.cpp:\n// Our customized __set_errno_internal for syscall.S to use. // we do not use the one from libc due to issue https://github.com/android/ndk/issues/1422 extern \"C\" long __set_errno_internal(int n) {  errno = n;  return -1; } 别忘了在C++代码中声明外部函数，以调用我们刚写好的汇编代码\ncopy标准系统调用函数原型，基本上改个名就可以了\n// customized syscalls extern \"C\" int my_read(int, void *, size_t); extern \"C\" int my_openat(int dirfd, const char *const __pass_object_size pathname, int flags, mode_t modes); extern \"C\" long my_ptrace(int __request, ...); 遍历进程列表检查frida-server存在 Android Lollipop及以后（Build.VERSION.SDK_INT = 21）就无法再使用\nActivityManager的getRunningAppProcesses()来获取运行中的进程了。\n所以这里我们获取root权限，然后调用ps来遍历进程列表\n获取root权限核心代码很简单\nprocess = Runtime.getRuntime().exec(\"su\") 然后手机上装的root管理工具，比如magisk就会弹框提示授权。\n封装一下\nfun execRootCmd(cmd: String): String {  if (!rooted) return \"\"  var out = \"\"  try {  val process = Runtime.getRuntime().exec(\"su\")  val stdin = DataOutputStream(process.outputStream)  val stdout = process.inputStream  val stderr = process.errorStream   Log.i(TAG, \"execRootCmd: $cmd\")  stdin.writeBytes(cmd + \"\\n\")  stdin.flush()  stdin.writeBytes(\"exit\\n\")  stdin.flush()  stdin.close()  var br = BufferedReader(InputStreamReader(stdout))  var line: String?   while ((br.readLine().also { line = it }) != null) {  out += line  }  br.close()  br = BufferedReader(InputStreamReader(stderr))  while ((br.readLine().also { line = it }) != null) {  out += line  }  br.close()  }catch (e: Exception) {  Log.e(TAG, e.stackTraceToString())  }  return out } 进行检测：\nbinding.btnCheckProcesses.setOnClickListener {  if (!SuperUser.rooted) {  SuperUser.tryRoot(packageCodePath)  if (!SuperUser.rooted)  return@setOnClickListener  }  val result = SuperUser.execRootCmd(\"ps -ef\")  Log.i(TAG, \"Root cmd result (size ${result.length}): $result\")  binding.textStatus.text.clear()  binding.textStatus.text.append(result)   Toast.makeText(  this, if (result.contains(\"frida-server\"))  \"frida-server process detected\" else \"no frida-server process found\",  Toast.LENGTH_SHORT  ).show() } 检查内存特征 前面提到的检查内存模块列表的方式，可以通过改名绕过，所以这里介绍检查内存特征的方式。\n比如检测模块特征字符串\"frida:rpc\"\n扫描核心代码：\nwhile ((read_line(fd, buf, buf_size, use_customized_syscalls))  0) {  if (sscanf(buf, \"%lx-%lx %4s %lx %*s %*s %s\", \u0026base, \u0026end, perm, \u0026offset, path) != 5) {  continue;  }   if (perm[0] != 'r') continue;  if (perm[3] != 'p') continue; //do not touch the shared memory  if (0 != offset) continue;  if (strlen(path) == 0) continue;  if ('[' == path[0]) continue;  if (end - base  1000000) continue;  if (wrap_endsWith(path, \".oat\")) continue;  if (elf_check_header(base) != 1) continue;   // 扫描指定内存范围是否存在特定字符串  if (find_mem_string(base, end, (unsigned char *) sig, sig_len) == 1) {  __android_log_print(ANDROID_LOG_INFO, TAG,  \"frida signature \\\"%s\\\"found in %lx - %lx\", sig, base, end);  result = JNI_TRUE;  break;  } } 针对性的进行了扫描，提高了运行效率。\nbypass手段参考CrackerCat/strongR-frida-android\n检查是否被调试 Linux调试是通过系统调用ptrace实现的，我们可以通过如下代码检查是否被调试器附加：\nextern \"C\" JNIEXPORT jboolean JNICALL Java_com_xxr0ss_antifrida_utils_AntiFridaUtil_checkBeingDebugged(JNIEnv *env, jobject thiz, jboolean use_customized_syscall) {   long res = use_customized_syscall ? my_ptrace(PTRACE_TRACEME, 0) : ptrace(PTRACE_TRACEME, 0);  return res  0 ? JNI_TRUE: JNI_FALSE; } （这里也可以使用我们自己实现的系统调用）\n",
+  "wordCount" : "1078",
+  "inLanguage": "en",
+  "datePublished": "2022-04-02T20:12:08+08:00",
+  "dateModified": "2022-04-02T20:12:08+08:00",
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://xxr0ss.github.io/post/frida_detection/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "XX の Blog",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://xxr0ss.github.io/favicon.ico"
+    }
+  }
+}
+</script>
+</head>
+
+<body class="" id="top">
+<script>
+    if (localStorage.getItem("pref-theme") === "dark") {
+        document.body.classList.add('dark');
+    } else if (localStorage.getItem("pref-theme") === "light") {
+        document.body.classList.remove('dark')
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.body.classList.add('dark');
+    }
+
+</script>
+
+<header class="header">
+    <nav class="nav">
+        <div class="logo">
+            <a href="https://xxr0ss.github.io/" accesskey="h" title="XX の Blog (Alt + H)">XX の Blog</a>
+            <span class="logo-switches">
+                <button id="theme-toggle" accesskey="t" title="(Alt + T)">
+                    <svg id="moon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    </svg>
+                    <svg id="sun" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"
+                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    </svg>
+                </button>
+            </span>
+        </div>
+        <ul id="menu">
+        </ul>
+    </nav>
+</header>
+<main class="main">
+
+<article class="post-single">
+  <header class="post-header">
+    
+    <h1 class="post-title">
+      Frida检测手段探究
+    </h1>
+    <div class="post-meta"><span title='2022-04-02 20:12:08 +0800 CST'>April 2, 2022</span>
+
+</div>
+  </header> <aside id="toc-container" class="toc-container wide">
+    <div class="toc">
+        <details >
+            <summary accesskey="c" title="(Alt + C)">
+                <span class="details">Table of Contents</span>
+            </summary>
+
+            <div class="inner"><ul><ul>
+                    <li>
+                        <a href="#%e6%9d%a5%e7%9c%8b%e7%9c%8bfrida%e5%b7%a5%e4%bd%9c%e7%9a%84%e8%bf%87%e7%a8%8b" aria-label="来看看Frida工作的过程">来看看Frida工作的过程</a></li></ul>
+                        
+                    <li>
+                        <a href="#%e6%a3%80%e6%9f%a5frida-server%e9%bb%98%e8%ae%a4%e7%ab%af%e5%8f%a3%e5%8d%a0%e7%94%a8" aria-label="检查frida-server默认端口占用">检查frida-server默认端口占用</a><ul>
+                            
+                    <li>
+                        <a href="#native%e4%bb%a3%e7%a0%81" aria-label="Native代码">Native代码</a></li>
+                    <li>
+                        <a href="#%e6%b3%a8%e6%84%8f" aria-label="注意">注意</a></li></ul>
+                    </li>
+                    <li>
+                        <a href="#%e6%a3%80%e6%9f%a5%e8%bf%9b%e7%a8%8b%e5%86%85%e5%ad%98%e6%a8%a1%e5%9d%97%e6%98%af%e5%90%a6%e5%ad%98%e5%9c%a8frida%e6%a8%a1%e5%9d%97" aria-label="检查进程内存模块是否存在frida模块">检查进程内存模块是否存在frida模块</a><ul>
+                            
+                    <li>
+                        <a href="#java%e5%b1%82" aria-label="Java层">Java层</a></li>
+                    <li>
+                        <a href="#native%e5%b1%82" aria-label="Native层">Native层</a><ul>
+                            
+                    <li>
+                        <a href="#%e7%b3%bb%e7%bb%9f%e8%b0%83%e7%94%a8%e7%9a%84%e8%87%aa%e5%ae%9a%e4%b9%89%e5%ae%9e%e7%8e%b0" aria-label="系统调用的自定义实现">系统调用的自定义实现</a><ul>
+                            
+                    <li>
+                        <a href="#%e8%87%aa%e8%a1%8c%e5%ae%9e%e7%8e%b0%e7%b3%bb%e7%bb%9f%e8%b0%83%e7%94%a8%e7%9a%84%e8%bf%87%e7%a8%8b" aria-label="自行实现系统调用的过程">自行实现系统调用的过程</a></li></ul>
+                    </li></ul>
+                    </li></ul>
+                    </li>
+                    <li>
+                        <a href="#%e9%81%8d%e5%8e%86%e8%bf%9b%e7%a8%8b%e5%88%97%e8%a1%a8%e6%a3%80%e6%9f%a5frida-server%e5%ad%98%e5%9c%a8" aria-label="遍历进程列表检查frida-server存在">遍历进程列表检查frida-server存在</a></li>
+                    <li>
+                        <a href="#%e6%a3%80%e6%9f%a5%e5%86%85%e5%ad%98%e7%89%b9%e5%be%81" aria-label="检查内存特征">检查内存特征</a></li>
+                    <li>
+                        <a href="#%e6%a3%80%e6%9f%a5%e6%98%af%e5%90%a6%e8%a2%ab%e8%b0%83%e8%af%95" aria-label="检查是否被调试">检查是否被调试</a>
+                    </li>
+                </ul>
+            </div>
+        </details>
+    </div>
+</aside>
+<script>
+    let activeElement;
+    let elements;
+    window.addEventListener('DOMContentLoaded', function (event) {
+        checkTocPosition();
+
+        elements = document.querySelectorAll('h1[id],h2[id],h3[id],h4[id],h5[id],h6[id]');
+         
+         activeElement = elements[0];
+         const id = encodeURI(activeElement.getAttribute('id')).toLowerCase();
+         document.querySelector(`.inner ul li a[href="#${id}"]`).classList.add('active');
+     }, false);
+
+    window.addEventListener('resize', function(event) {
+        checkTocPosition();
+    }, false);
+
+    window.addEventListener('scroll', () => {
+        
+        activeElement = Array.from(elements).find((element) => {
+            if ((getOffsetTop(element) - window.pageYOffset) > 0 && 
+                (getOffsetTop(element) - window.pageYOffset) < window.innerHeight/2) {
+                return element;
+            }
+        }) || activeElement
+
+        elements.forEach(element => {
+             const id = encodeURI(element.getAttribute('id')).toLowerCase();
+             if (element === activeElement){
+                 document.querySelector(`.inner ul li a[href="#${id}"]`).classList.add('active');
+             } else {
+                 document.querySelector(`.inner ul li a[href="#${id}"]`).classList.remove('active');
+             }
+         })
+     }, false);
+
+    const main = parseInt(getComputedStyle(document.body).getPropertyValue('--article-width'), 10);
+    const toc = parseInt(getComputedStyle(document.body).getPropertyValue('--toc-width'), 10);
+    const gap = parseInt(getComputedStyle(document.body).getPropertyValue('--gap'), 10);
+
+    function checkTocPosition() {
+        const width = document.body.scrollWidth;
+
+        if (width - main - (toc * 2) - (gap * 4) > 0) {
+            document.getElementById("toc-container").classList.add("wide");
+        } else {
+            document.getElementById("toc-container").classList.remove("wide");
+        }
+    }
+
+    function getOffsetTop(element) {
+        if (!element.getClientRects().length) {
+            return 0;
+        }
+        let rect = element.getBoundingClientRect();
+        let win = element.ownerDocument.defaultView;
+        return rect.top + win.pageYOffset;   
+    }
+</script>
+
+  <div class="post-content"><p><strong>NOTICE:</strong> 本文提到的手段的代码实现在我的代码库<a href="https://github.com/xxr0ss/AntiFrida">xxr0ss/AntiFrida</a>中，
+不详细之处，请参照代码实现。</p>
+<h2 id="来看看frida工作的过程">来看看Frida工作的过程<a hidden class="anchor" aria-hidden="true" href="#来看看frida工作的过程">#</a></h2>
+<p><a href="https://web.archive.org/web/20160803154827/http://act.osdc.no/osdc2015no/" title="OSDC 2015">OSDC 2015</a>: <a href="https://web.archive.org/web/20160413183418/http://act.osdc.no/osdc2015no/talk/6195" title="The engineering behind the reverse engineering">The engineering behind the reverse engineering</a> (<a href="https://frida.re/slides/osdc-2015-the-engineering-behind-the-reverse-engineering.pdf" title="PDF">PDF</a> · <a href="https://youtu.be/uc1mbN9EJKQ" title="Recording">Recording</a>)</p>
+<p>概括来说就是，frida-agent是frida实现注入时，注入进程的模块，和frida-server通信完成frida的功能。</p>
+<p>在frida注入模式不可用时，我们还可以通过frida-gadget来完成插桩工作，有如下几种实现方式：</p>
+<ul>
+<li>
+<p>修改程序源码使其加载frida-agent</p>
+</li>
+<li>
+<p>Patch程序或程序加载的库</p>
+</li>
+<li>
+<p>使用一些动态链接的特性，比如<code>LD_PRELOAD</code>和<code>DYLD_INSERT_LIBRARIES</code></p>
+</li>
+</ul>
+<h1 id="检查frida-server默认端口占用">检查frida-server默认端口占用<a hidden class="anchor" aria-hidden="true" href="#检查frida-server默认端口占用">#</a></h1>
+<p>创建socket去连接指定端口（27042），如果frida-server在默认端口下运行，则可以连接成功。</p>
+<p>缺陷是frida-server可以直接指定端口</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-bash" data-lang="bash"><span style="display:flex;"><span>frida-server -l 127.0.0.1:2333
+</span></span></code></pre></div><h2 id="native代码">Native代码<a hidden class="anchor" aria-hidden="true" href="#native代码">#</a></h2>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c++" data-lang="c++"><span style="display:flex;"><span><span style="color:#66d9ef">extern</span> <span style="color:#e6db74">&#34;C&#34;</span>
+</span></span><span style="display:flex;"><span>JNIEXPORT jboolean JNICALL
+</span></span><span style="display:flex;"><span>Java_com_xxr0ss_antifrida_utils_AntiFridaUtil_checkFridaByPort(JNIEnv <span style="color:#f92672">*</span>env, jobject thiz,
+</span></span><span style="display:flex;"><span>                                                               jint port) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">sockaddr_in</span> sa{};
+</span></span><span style="display:flex;"><span>    sa.sin_family <span style="color:#f92672">=</span> AF_INET;
+</span></span><span style="display:flex;"><span>    sa.sin_port <span style="color:#f92672">=</span> htons(port);
+</span></span><span style="display:flex;"><span>    inet_aton(<span style="color:#e6db74">&#34;127.0.0.1&#34;</span>, <span style="color:#f92672">&amp;</span>sa.sin_addr);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> sock <span style="color:#f92672">=</span> socket(AF_INET, SOCK_STREAM, <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (connect(sock, (<span style="color:#66d9ef">struct</span> <span style="color:#a6e22e">sockaddr</span> <span style="color:#f92672">*</span>) <span style="color:#f92672">&amp;</span>sa, <span style="color:#66d9ef">sizeof</span>(sa)) <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">// we can connect to frida-server when it&#39;s running
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>        close(sock);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> JNI_TRUE;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> JNI_FALSE;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="注意">注意<a hidden class="anchor" aria-hidden="true" href="#注意">#</a></h2>
+<p>需要在<code>AndroidManifest.xml</code>中添加网络权限</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-xml" data-lang="xml"><span style="display:flex;"><span><span style="color:#f92672">&lt;uses-permission</span> <span style="color:#a6e22e">android:name=</span><span style="color:#e6db74">&#34;android.permission.INTERNET&#34;</span> <span style="color:#f92672">/&gt;</span>
+</span></span></code></pre></div><h1 id="检查进程内存模块是否存在frida模块">检查进程内存模块是否存在frida模块<a hidden class="anchor" aria-hidden="true" href="#检查进程内存模块是否存在frida模块">#</a></h1>
+<p>也就是要检测frida-agent和frida-gadget的存在。在哪检测呢？答案是<code>/proc/self/maps </code>
+Linux下存在一个伪文件系统<code>/proc</code>，可用通过<code>/proc/&lt;PID&gt;</code>来访问指定进程的各种信息。把pid换成<code>self</code>，进程就可以读取自身信息。</p>
+<p><code>maps</code>中包含进程内存地址空间映射信息</p>
+<h2 id="java层">Java层<a hidden class="anchor" aria-hidden="true" href="#java层">#</a></h2>
+<p>以Kotlin为例，直接读取<code>/proc/self/maps</code>，看看当前进程地址空间是不是包含frida-agent</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-kotlin" data-lang="kotlin"><span style="display:flex;"><span><span style="color:#66d9ef">fun</span> <span style="color:#a6e22e">readProcMaps</span>(): String {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">try</span>{
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">val</span> mapsFile = File(<span style="color:#e6db74">&#34;/proc/self/maps&#34;</span>)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> mapsFile.readText()
+</span></span><span style="display:flex;"><span>    }<span style="color:#66d9ef">catch</span> (e: Exception) {
+</span></span><span style="display:flex;"><span>        Log.e(TAG, e.stackTraceToString())
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="native层">Native层<a hidden class="anchor" aria-hidden="true" href="#native层">#</a></h2>
+<p>说一下项目文件结构，不然后面容易迷惑</p>
+<pre tabindex="0"><code class="language-纯文本" data-lang="纯文本">main
+ ├── AndroidManifest.xml
+ ├── cpp
+ │   ├── antifrida.cpp
+ │   ├── bionic_asm.h
+ │   ├── CMakeLists.txt
+ │   └── syscall.S
+ ├── java
+ └── res
+</code></pre><p>和前面一样，也是读取<code>/proc/self/maps</code>，不过这层的便利之处在于：</p>
+<ul>
+<li>
+<p>可以自行实现系统调用，一定程度上规避hook</p>
+</li>
+<li>
+<p>可以直接扫描内存中的模块是否存在特定字符串，避免frida模块通过改个名就绕过</p>
+</li>
+</ul>
+<p>最简单的写法，其实就是循环读取文件，然后检查关键字</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c++" data-lang="c++"><span style="display:flex;"><span><span style="color:#66d9ef">char</span> line[<span style="color:#ae81ff">512</span>];
+</span></span><span style="display:flex;"><span>FILE<span style="color:#f92672">*</span> fp;
+</span></span><span style="display:flex;"><span>fp <span style="color:#f92672">=</span> fopen(<span style="color:#e6db74">&#34;/proc/self/maps&#34;</span>, <span style="color:#e6db74">&#34;r&#34;</span>);
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">if</span> (fp) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">while</span> (fgets(line, <span style="color:#ae81ff">512</span>, fp)) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (strstr(line, <span style="color:#e6db74">&#34;frida&#34;</span>)) {
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e">/* Evil library is loaded. Do something… */</span>
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    fclose(fp);
+</span></span><span style="display:flex;"><span>    } <span style="color:#66d9ef">else</span> {
+</span></span><span style="display:flex;"><span>       <span style="color:#75715e">/* Error opening /proc/self/maps. If this happens, something is off. */</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>但这里我想要实现将<code>maps</code>内容返回Java层，所以实现稍微复杂了一点点。</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c++" data-lang="c++"><span style="display:flex;"><span>JNIEXPORT jstring JNICALL
+</span></span><span style="display:flex;"><span><span style="color:#a6e22e">Java_com_xxr0ss_antifrida_utils_AntiFridaUtil_nativeReadProcMaps</span>(JNIEnv <span style="color:#f92672">*</span>env, jobject thiz,
+</span></span><span style="display:flex;"><span>                                                                 jboolean useCustomizedSyscall) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>data <span style="color:#f92672">=</span> <span style="color:#66d9ef">nullptr</span>;
+</span></span><span style="display:flex;"><span>    size_t data_size <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> res <span style="color:#f92672">=</span> read_pseudo_file_at(MAPS_FILE, <span style="color:#f92672">&amp;</span>data, <span style="color:#f92672">&amp;</span>data_size, useCustomizedSyscall);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (res <span style="color:#f92672">==</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>) {
+</span></span><span style="display:flex;"><span>        __android_log_print(ANDROID_LOG_ERROR, TAG,
+</span></span><span style="display:flex;"><span>                            <span style="color:#e6db74">&#34;read_pseudo_file %s failed, errno %s: %d&#34;</span>,
+</span></span><span style="display:flex;"><span>                            MAPS_FILE, strerror(errno), errno);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (data) {
+</span></span><span style="display:flex;"><span>            free(data);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nullptr</span>;
+</span></span><span style="display:flex;"><span>    } <span style="color:#66d9ef">else</span> <span style="color:#66d9ef">if</span> (res <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>        __android_log_print(ANDROID_LOG_INFO, TAG, <span style="color:#e6db74">&#34;read_pseudo_file had read 0 bytes&#34;</span>);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (data) {
+</span></span><span style="display:flex;"><span>            free(data);
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">nullptr</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    jstring str <span style="color:#f92672">=</span> env<span style="color:#f92672">-&gt;</span>NewStringUTF(data);
+</span></span><span style="display:flex;"><span>    free(data);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> str;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p><code>read_pseudo_file_at()</code>的实现：</p>
+<ul>
+<li>
+<p><code>openat()</code>打开文件</p>
+</li>
+<li>
+<p><code>read()</code>读取文件</p>
+</li>
+<li>
+<p>动态增长内存以读入文件</p>
+</li>
+</ul>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c++" data-lang="c++"><span style="display:flex;"><span><span style="color:#75715e">/*  Read pseudo files in paths like /proc /sys
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *  *buf_ptr can be existing dynamic memory or nullptr (if so, this function
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *  will alloc memory automatically).
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *  remember to free the *buf_ptr because in no cases will *buf_ptr be
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *  freed inside this function
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> *  return -1 on error, or non-negative value on success
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"> * */</span>
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">int</span> <span style="color:#a6e22e">read_pseudo_file_at</span>(<span style="color:#66d9ef">const</span> <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>path, <span style="color:#66d9ef">char</span> <span style="color:#f92672">**</span>buf_ptr, size_t <span style="color:#f92672">*</span>buf_size_ptr,
+</span></span><span style="display:flex;"><span>                        <span style="color:#66d9ef">bool</span> use_customized_syscalls) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>path <span style="color:#f92672">||</span> <span style="color:#f92672">!*</span>path <span style="color:#f92672">||</span> <span style="color:#f92672">!</span>buf_ptr <span style="color:#f92672">||</span> <span style="color:#f92672">!</span>buf_size_ptr) {
+</span></span><span style="display:flex;"><span>        errno <span style="color:#f92672">=</span> EINVAL;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>buf;
+</span></span><span style="display:flex;"><span>    size_t buf_size, total_read_size <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">/* Existing dynamic buffer, or a new buffer? */</span>
+</span></span><span style="display:flex;"><span>    buf_size <span style="color:#f92672">=</span> <span style="color:#f92672">*</span>buf_size_ptr;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>buf_size)
+</span></span><span style="display:flex;"><span>        <span style="color:#f92672">*</span>buf_ptr <span style="color:#f92672">=</span> <span style="color:#66d9ef">nullptr</span>;
+</span></span><span style="display:flex;"><span>    buf <span style="color:#f92672">=</span> <span style="color:#f92672">*</span>buf_ptr;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">/* Open pseudo file */</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">int</span> fd <span style="color:#f92672">=</span> use_customized_syscalls <span style="color:#f92672">?</span>
+</span></span><span style="display:flex;"><span>             my_openat(AT_FDCWD, MAPS_FILE, O_RDONLY <span style="color:#f92672">|</span> O_CLOEXEC, <span style="color:#ae81ff">0</span>)
+</span></span><span style="display:flex;"><span>                                     <span style="color:#f92672">:</span> openat(AT_FDCWD, MAPS_FILE, O_RDONLY <span style="color:#f92672">|</span> O_CLOEXEC, <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (fd <span style="color:#f92672">==</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>) {
+</span></span><span style="display:flex;"><span>        __android_log_print(ANDROID_LOG_INFO, TAG, <span style="color:#e6db74">&#34;openat error %s : %d&#34;</span>, strerror(errno), errno);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">while</span> (true) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (total_read_size <span style="color:#f92672">&gt;=</span> buf_size) {
+</span></span><span style="display:flex;"><span>            <span style="color:#75715e">/* linear size growth
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">             * buf_size grow ~4k bytes each time, 32 bytes for zero padding
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">             * */</span>
+</span></span><span style="display:flex;"><span>            buf_size <span style="color:#f92672">=</span> (total_read_size <span style="color:#f92672">|</span> <span style="color:#ae81ff">4095</span>) <span style="color:#f92672">+</span> <span style="color:#ae81ff">4097</span> <span style="color:#f92672">-</span> <span style="color:#ae81ff">32</span>;
+</span></span><span style="display:flex;"><span>            buf <span style="color:#f92672">=</span> (<span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>) realloc(buf, buf_size);
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">if</span> (<span style="color:#f92672">!</span>buf) {
+</span></span><span style="display:flex;"><span>                close(fd);
+</span></span><span style="display:flex;"><span>                errno <span style="color:#f92672">=</span> ENOMEM;
+</span></span><span style="display:flex;"><span>                <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>            }
+</span></span><span style="display:flex;"><span>            <span style="color:#f92672">*</span>buf_ptr <span style="color:#f92672">=</span> buf;
+</span></span><span style="display:flex;"><span>            <span style="color:#f92672">*</span>buf_size_ptr <span style="color:#f92672">=</span> buf_size;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        size_t n <span style="color:#f92672">=</span> use_customized_syscalls <span style="color:#f92672">?</span>
+</span></span><span style="display:flex;"><span>                   my_read(fd, buf <span style="color:#f92672">+</span> total_read_size, buf_size <span style="color:#f92672">-</span> total_read_size)
+</span></span><span style="display:flex;"><span>                                           <span style="color:#f92672">:</span> read(fd, buf <span style="color:#f92672">+</span> total_read_size,
+</span></span><span style="display:flex;"><span>                                                  buf_size <span style="color:#f92672">-</span> total_read_size);
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (n <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            total_read_size <span style="color:#f92672">+=</span> n;
+</span></span><span style="display:flex;"><span>        } <span style="color:#66d9ef">else</span> <span style="color:#66d9ef">if</span> (n <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>        } <span style="color:#66d9ef">else</span> <span style="color:#66d9ef">if</span> (n <span style="color:#f92672">==</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">int</span> saved_errno <span style="color:#f92672">=</span> errno;
+</span></span><span style="display:flex;"><span>            close(fd);
+</span></span><span style="display:flex;"><span>            errno <span style="color:#f92672">=</span> saved_errno;
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (close(fd) <span style="color:#f92672">==</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#75715e">/* errno set by close(). */</span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (total_read_size <span style="color:#f92672">+</span> <span style="color:#ae81ff">32</span> <span style="color:#f92672">&gt;</span> buf_size)
+</span></span><span style="display:flex;"><span>        memset(buf <span style="color:#f92672">+</span> total_read_size, <span style="color:#ae81ff">0</span>, <span style="color:#ae81ff">32</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">else</span>
+</span></span><span style="display:flex;"><span>        memset(buf <span style="color:#f92672">+</span> total_read_size, <span style="color:#ae81ff">0</span>, buf_size <span style="color:#f92672">-</span> total_read_size);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    errno <span style="color:#f92672">=</span> <span style="color:#ae81ff">0</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> (<span style="color:#66d9ef">int</span>)total_read_size;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p><code>use_customized_syscalls</code>指定是否使用自己实现的系统调用。</p>
+<h3 id="系统调用的自定义实现">系统调用的自定义实现<a hidden class="anchor" aria-hidden="true" href="#系统调用的自定义实现">#</a></h3>
+<p>Syscall在Android上的实现可以参照<a href="http://gityuan.com/2016/05/21/syscall/" title="Gityuan博客">Gityuan博客</a></p>
+<blockquote>
+<p>在用户空间和内核空间之间，有一个叫做Syscall(系统调用, system call)的中间层，是连接用户态和内核态的桥梁。这样即提高了内核的安全型，也便于移植，只需实现同一套接口即可。Linux系统，用户空间通过向内核空间发出Syscall，产生软中断，从而让程序陷入内核态，执行相应的操作。</p>
+</blockquote>
+<p>但是这篇文章稍微有点老，提到的源码路径有变化，在现在的Android 12上涉及的源码如下</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-text" data-lang="text"><span style="display:flex;"><span>common/include/uapi/asm-generic/unistd.h    # 包含调用号
+</span></span><span style="display:flex;"><span>bionic/libc/bionic/__set_errno.cpp          # 包含设置errno的代码
+</span></span><span style="display:flex;"><span>bionic/libc/tools/gensyscalls.py            # 用于生成不同架构下的syscall汇编代码
+</span></span></code></pre></div><p><a href="cs.android.com" title="cs.android.com">cs.android.com</a>上可查阅</p>
+<h4 id="自行实现系统调用的过程">自行实现系统调用的过程<a hidden class="anchor" aria-hidden="true" href="#自行实现系统调用的过程">#</a></h4>
+<p><code>CMakeLists.txt</code>中启用汇编</p>
+<pre tabindex="0"><code class="language-纯文本" data-lang="纯文本">set(can_use_assembler TRUE)
+enable_language(ASM)
+</code></pre><p>复制和修改Android源码<code>bionic/libc/private/bionic_asm.h</code>到我们项目中</p>
+<pre tabindex="0"><code class="language-纯文本" data-lang="纯文本">/* https://github.com/android/ndk/issues/1422 */
+- #include &lt;features.h&gt;
++ // 去掉这个导入，否则我们的汇编代码会无法编译，原因就是源码中给出的这个issue，是个NDK的bug
+
+// ...
+
+- #if defined(__aarch64__)
+- #include &lt;private/bionic_asm_arm64.h&gt;
+- #elif defined(__arm__)
+- #include &lt;private/bionic_asm_arm.h&gt;
+- #elif defined(__i386__)
+- #include &lt;private/bionic_asm_x86.h&gt;
+- #elif defined(__x86_64__)
+- #include &lt;private/bionic_asm_x86_64.h&gt;
+- #endif
++ // 前面这些其实目的就是为了下面这个
++ #define __bionic_asm_align 16
+</code></pre><p>参照源码中<code>bionic/libc/tools/gensyscalls.py</code>脚本的代码：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span>syscall_stub_header <span style="color:#f92672">=</span> \
+</span></span><span style="display:flex;"><span><span style="color:#e6db74">&#34;&#34;&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">ENTRY(</span><span style="color:#e6db74">%(func)s</span><span style="color:#e6db74">)
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">&#34;&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>arm64_call <span style="color:#f92672">=</span> syscall_stub_header <span style="color:#f92672">+</span> <span style="color:#e6db74">&#34;&#34;&#34;</span><span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span><span style="color:#e6db74">    mov     x8, </span><span style="color:#e6db74">%(__NR_name)s</span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    svc     #0
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    cmn     x0, #(MAX_ERRNO + 1)
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    cneg    x0, x0, hi
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    b.hi    __set_errno_internal
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    ret
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">END(</span><span style="color:#e6db74">%(func)s</span><span style="color:#e6db74">)
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">&#34;&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>x86_64_call <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;&#34;&#34;</span><span style="color:#ae81ff">\
+</span></span></span><span style="display:flex;"><span><span style="color:#ae81ff"></span><span style="color:#e6db74">    movl    $</span><span style="color:#e6db74">%(__NR_name)s</span><span style="color:#e6db74">, </span><span style="color:#e6db74">%%</span><span style="color:#e6db74">eax
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    syscall
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    cmpq    $-MAX_ERRNO, </span><span style="color:#e6db74">%%</span><span style="color:#e6db74">rax
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    jb      1f
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    negl    </span><span style="color:#e6db74">%%</span><span style="color:#e6db74">eax
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    movl    </span><span style="color:#e6db74">%%</span><span style="color:#e6db74">eax, </span><span style="color:#e6db74">%%</span><span style="color:#e6db74">edi
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    call    __set_errno_internal
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">1:
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">    ret
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">END(</span><span style="color:#e6db74">%(func)s</span><span style="color:#e6db74">)
+</span></span></span><span style="display:flex;"><span><span style="color:#e6db74">&#34;&#34;&#34;</span>
+</span></span></code></pre></div><p>编写汇编代码</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c++" data-lang="c++"><span style="display:flex;"><span><span style="color:#75715e">#include</span> <span style="color:#75715e">&#34;bionic_asm.h&#34; // 我们修改过的版本</span><span style="color:#75715e">
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">#if defined(__aarch64__)
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>
+</span></span><span style="display:flex;"><span>ENTRY(my_read)
+</span></span><span style="display:flex;"><span>    mov     x8, __NR_read
+</span></span><span style="display:flex;"><span>    svc     <span style="color:#960050;background-color:#1e0010">#</span><span style="color:#ae81ff">0</span>
+</span></span><span style="display:flex;"><span>    cmn     x0, <span style="color:#960050;background-color:#1e0010">#</span>(MAX_ERRNO <span style="color:#f92672">+</span> <span style="color:#ae81ff">1</span>)
+</span></span><span style="display:flex;"><span>    cneg    x0, x0, hi
+</span></span><span style="display:flex;"><span>    b.hi    __set_errno_internal
+</span></span><span style="display:flex;"><span>    ret
+</span></span><span style="display:flex;"><span>END(my_read)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#75715e">// ...
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#75715e">#endif
+</span></span></span></code></pre></div><p>汇编代码里的<code>__set_errno_internal</code>我们自行进行实现</p>
+<p><code>antifrida.cpp</code>:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c++" data-lang="c++"><span style="display:flex;"><span><span style="color:#75715e">// Our customized __set_errno_internal for syscall.S to use.
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e">// we do not use the one from libc due to issue https://github.com/android/ndk/issues/1422
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">extern</span> <span style="color:#e6db74">&#34;C&#34;</span> <span style="color:#66d9ef">long</span> __set_errno_internal(<span style="color:#66d9ef">int</span> n) {
+</span></span><span style="display:flex;"><span>    errno <span style="color:#f92672">=</span> n;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#f92672">-</span><span style="color:#ae81ff">1</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>别忘了在C++代码中声明外部函数，以调用我们刚写好的汇编代码</p>
+<p>copy标准系统调用函数原型，基本上改个名就可以了</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c++" data-lang="c++"><span style="display:flex;"><span><span style="color:#75715e">// customized syscalls
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span><span style="color:#66d9ef">extern</span> <span style="color:#e6db74">&#34;C&#34;</span> <span style="color:#66d9ef">int</span> my_read(<span style="color:#66d9ef">int</span>, <span style="color:#66d9ef">void</span> <span style="color:#f92672">*</span>, size_t);
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">extern</span> <span style="color:#e6db74">&#34;C&#34;</span> <span style="color:#66d9ef">int</span> my_openat(<span style="color:#66d9ef">int</span> dirfd, <span style="color:#66d9ef">const</span> <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span><span style="color:#66d9ef">const</span> __pass_object_size pathname, <span style="color:#66d9ef">int</span> flags, mode_t modes);
+</span></span><span style="display:flex;"><span><span style="color:#66d9ef">extern</span> <span style="color:#e6db74">&#34;C&#34;</span> <span style="color:#66d9ef">long</span> my_ptrace(<span style="color:#66d9ef">int</span> __request, ...);
+</span></span></code></pre></div><h1 id="遍历进程列表检查frida-server存在">遍历进程列表检查frida-server存在<a hidden class="anchor" aria-hidden="true" href="#遍历进程列表检查frida-server存在">#</a></h1>
+<p>Android Lollipop及以后（Build.VERSION.SDK_INT &gt;= 21）就无法再使用</p>
+<p><code>ActivityManager</code>的<code>getRunningAppProcesses()</code>来获取运行中的进程了。</p>
+<p>所以这里我们获取root权限，然后调用ps来遍历进程列表</p>
+<p>获取root权限核心代码很简单</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-kotlin" data-lang="kotlin"><span style="display:flex;"><span>process = Runtime.getRuntime().exec(<span style="color:#e6db74">&#34;su&#34;</span>)
+</span></span></code></pre></div><p>然后手机上装的root管理工具，比如magisk就会弹框提示授权。</p>
+<p>封装一下</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-kotlin" data-lang="kotlin"><span style="display:flex;"><span><span style="color:#66d9ef">fun</span> <span style="color:#a6e22e">execRootCmd</span>(cmd: String): String {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (!rooted) <span style="color:#66d9ef">return</span> <span style="color:#e6db74">&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">var</span> out = <span style="color:#e6db74">&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">try</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">val</span> process = Runtime.getRuntime().exec(<span style="color:#e6db74">&#34;su&#34;</span>)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">val</span> stdin = DataOutputStream(process.outputStream)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">val</span> stdout = process.inputStream
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">val</span> stderr = process.errorStream
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        Log.i(TAG, <span style="color:#e6db74">&#34;execRootCmd: </span><span style="color:#e6db74">$cmd</span><span style="color:#e6db74">&#34;</span>)
+</span></span><span style="display:flex;"><span>        stdin.writeBytes(cmd + <span style="color:#e6db74">&#34;</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>)
+</span></span><span style="display:flex;"><span>        stdin.flush()
+</span></span><span style="display:flex;"><span>        stdin.writeBytes(<span style="color:#e6db74">&#34;exit</span><span style="color:#ae81ff">\n</span><span style="color:#e6db74">&#34;</span>)
+</span></span><span style="display:flex;"><span>        stdin.flush()
+</span></span><span style="display:flex;"><span>        stdin.close()
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> br = BufferedReader(InputStreamReader(stdout))
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">var</span> line: String?
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">while</span> ((br.readLine().also { line = <span style="color:#66d9ef">it</span> }) <span style="color:#f92672">!=</span> <span style="color:#66d9ef">null</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">out</span> <span style="color:#f92672">+=</span> line
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        br.close()
+</span></span><span style="display:flex;"><span>        br = BufferedReader(InputStreamReader(stderr))
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">while</span> ((br.readLine().also { line = <span style="color:#66d9ef">it</span> }) <span style="color:#f92672">!=</span> <span style="color:#66d9ef">null</span>) {
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">out</span> <span style="color:#f92672">+=</span> line
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        br.close()
+</span></span><span style="display:flex;"><span>    }<span style="color:#66d9ef">catch</span> (e: Exception) {
+</span></span><span style="display:flex;"><span>        Log.e(TAG, e.stackTraceToString())
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> <span style="color:#66d9ef">out</span>
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>进行检测：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-kotlin" data-lang="kotlin"><span style="display:flex;"><span>binding.btnCheckProcesses.setOnClickListener {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (!SuperUser.rooted) {
+</span></span><span style="display:flex;"><span>        SuperUser.tryRoot(packageCodePath)
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">if</span> (!SuperUser.rooted)
+</span></span><span style="display:flex;"><span>            <span style="color:#66d9ef">return</span><span style="color:#a6e22e">@setOnClickListener</span>
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">val</span> result = SuperUser.execRootCmd(<span style="color:#e6db74">&#34;ps -ef&#34;</span>)
+</span></span><span style="display:flex;"><span>    Log.i(TAG, <span style="color:#e6db74">&#34;Root cmd result (size </span><span style="color:#e6db74">${result.length}</span><span style="color:#e6db74">): </span><span style="color:#e6db74">$result</span><span style="color:#e6db74"> &#34;</span>)
+</span></span><span style="display:flex;"><span>    binding.textStatus.text.clear()
+</span></span><span style="display:flex;"><span>    binding.textStatus.text.append(result)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    Toast.makeText(
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">this</span>, <span style="color:#66d9ef">if</span> (result.contains(<span style="color:#e6db74">&#34;frida-server&#34;</span>))
+</span></span><span style="display:flex;"><span>            <span style="color:#e6db74">&#34;frida-server process detected&#34;</span> <span style="color:#66d9ef">else</span> <span style="color:#e6db74">&#34;no frida-server process found&#34;</span>,
+</span></span><span style="display:flex;"><span>        Toast.LENGTH_SHORT
+</span></span><span style="display:flex;"><span>    ).show()
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h1 id="检查内存特征">检查内存特征<a hidden class="anchor" aria-hidden="true" href="#检查内存特征">#</a></h1>
+<p>前面提到的检查内存模块列表的方式，可以通过改名绕过，所以这里介绍检查内存特征的方式。</p>
+<p>比如检测模块特征字符串<code>&quot;frida:rpc&quot;</code></p>
+<p>扫描核心代码：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c++" data-lang="c++"><span style="display:flex;"><span><span style="color:#66d9ef">while</span> ((read_line(fd, buf, buf_size, use_customized_syscalls)) <span style="color:#f92672">&gt;</span> <span style="color:#ae81ff">0</span>) {
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (sscanf(buf, <span style="color:#e6db74">&#34;%lx-%lx %4s %lx %*s %*s %s&#34;</span>, <span style="color:#f92672">&amp;</span>base, <span style="color:#f92672">&amp;</span>end, perm, <span style="color:#f92672">&amp;</span>offset, path) <span style="color:#f92672">!=</span> <span style="color:#ae81ff">5</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">continue</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (perm[<span style="color:#ae81ff">0</span>] <span style="color:#f92672">!=</span> <span style="color:#e6db74">&#39;r&#39;</span>) <span style="color:#66d9ef">continue</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (perm[<span style="color:#ae81ff">3</span>] <span style="color:#f92672">!=</span> <span style="color:#e6db74">&#39;p&#39;</span>) <span style="color:#66d9ef">continue</span>; <span style="color:#75715e">//do not touch the shared memory
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">if</span> (<span style="color:#ae81ff">0</span> <span style="color:#f92672">!=</span> offset) <span style="color:#66d9ef">continue</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (strlen(path) <span style="color:#f92672">==</span> <span style="color:#ae81ff">0</span>) <span style="color:#66d9ef">continue</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (<span style="color:#e6db74">&#39;[&#39;</span> <span style="color:#f92672">==</span> path[<span style="color:#ae81ff">0</span>]) <span style="color:#66d9ef">continue</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (end <span style="color:#f92672">-</span> base <span style="color:#f92672">&lt;=</span> <span style="color:#ae81ff">1000000</span>) <span style="color:#66d9ef">continue</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (wrap_endsWith(path, <span style="color:#e6db74">&#34;.oat&#34;</span>)) <span style="color:#66d9ef">continue</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">if</span> (elf_check_header(base) <span style="color:#f92672">!=</span> <span style="color:#ae81ff">1</span>) <span style="color:#66d9ef">continue</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#75715e">// 扫描指定内存范围是否存在特定字符串
+</span></span></span><span style="display:flex;"><span><span style="color:#75715e"></span>    <span style="color:#66d9ef">if</span> (find_mem_string(base, end, (<span style="color:#66d9ef">unsigned</span> <span style="color:#66d9ef">char</span> <span style="color:#f92672">*</span>) sig, sig_len) <span style="color:#f92672">==</span> <span style="color:#ae81ff">1</span>) {
+</span></span><span style="display:flex;"><span>        __android_log_print(ANDROID_LOG_INFO, TAG,
+</span></span><span style="display:flex;"><span>                            <span style="color:#e6db74">&#34;frida signature </span><span style="color:#ae81ff">\&#34;</span><span style="color:#e6db74">%s</span><span style="color:#ae81ff">\&#34;</span><span style="color:#e6db74"> found in %lx - %lx&#34;</span>, sig, base, end);
+</span></span><span style="display:flex;"><span>        result <span style="color:#f92672">=</span> JNI_TRUE;
+</span></span><span style="display:flex;"><span>        <span style="color:#66d9ef">break</span>;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>针对性的进行了扫描，提高了运行效率。</p>
+<p>bypass手段参考<a href="https://github.com/CrackerCat/strongR-frida-android" title="CrackerCat/strongR-frida-android">CrackerCat/strongR-frida-android</a></p>
+<h1 id="检查是否被调试">检查是否被调试<a hidden class="anchor" aria-hidden="true" href="#检查是否被调试">#</a></h1>
+<p>Linux调试是通过系统调用ptrace实现的，我们可以通过如下代码检查是否被调试器附加：</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c++" data-lang="c++"><span style="display:flex;"><span><span style="color:#66d9ef">extern</span> <span style="color:#e6db74">&#34;C&#34;</span>
+</span></span><span style="display:flex;"><span>JNIEXPORT jboolean JNICALL
+</span></span><span style="display:flex;"><span>Java_com_xxr0ss_antifrida_utils_AntiFridaUtil_checkBeingDebugged(JNIEnv <span style="color:#f92672">*</span>env, jobject thiz, jboolean use_customized_syscall) {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">long</span> res <span style="color:#f92672">=</span> use_customized_syscall <span style="color:#f92672">?</span> my_ptrace(PTRACE_TRACEME, <span style="color:#ae81ff">0</span>) <span style="color:#f92672">:</span> ptrace(PTRACE_TRACEME, <span style="color:#ae81ff">0</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#66d9ef">return</span> res <span style="color:#f92672">&lt;</span> <span style="color:#ae81ff">0</span> <span style="color:#f92672">?</span> JNI_TRUE: JNI_FALSE;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>（这里也可以使用我们自己实现的系统调用）</p>
+
+
+  </div>
+
+  <footer class="post-footer">
+  </footer>
+</article>
+    </main>
+    
+<footer class="footer">
+    <span>&copy; 2022 <a href="https://xxr0ss.github.io/">XX の Blog</a></span>
+    <span>
+        Powered by
+        <a href="https://gohugo.io/" rel="noopener noreferrer" target="_blank">Hugo</a> &
+        <a href="https://git.io/hugopapermod" rel="noopener" target="_blank">PaperMod</a>
+    </span>
+</footer>
+<a href="#top" aria-label="go to top" title="Go to Top (Alt + G)" class="top-link" id="top-link" accesskey="g">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 12 6" fill="currentColor">
+        <path d="M12 6H0l6-6z" />
+    </svg>
+</a>
+
+<script>
+    let menu = document.getElementById('menu')
+    if (menu) {
+        menu.scrollLeft = localStorage.getItem("menu-scroll-position");
+        menu.onscroll = function () {
+            localStorage.setItem("menu-scroll-position", menu.scrollLeft);
+        }
+    }
+
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener("click", function (e) {
+            e.preventDefault();
+            var id = this.getAttribute("href").substr(1);
+            if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView({
+                    behavior: "smooth"
+                });
+            } else {
+                document.querySelector(`[id='${decodeURIComponent(id)}']`).scrollIntoView();
+            }
+            if (id === "top") {
+                history.replaceState(null, null, " ");
+            } else {
+                history.pushState(null, null, `#${id}`);
+            }
+        });
+    });
+
+</script>
+<script>
+    var mybutton = document.getElementById("top-link");
+    window.onscroll = function () {
+        if (document.body.scrollTop > 800 || document.documentElement.scrollTop > 800) {
+            mybutton.style.visibility = "visible";
+            mybutton.style.opacity = "1";
+        } else {
+            mybutton.style.visibility = "hidden";
+            mybutton.style.opacity = "0";
+        }
+    };
+
+</script>
+<script>
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        if (document.body.className.includes("dark")) {
+            document.body.classList.remove('dark');
+            localStorage.setItem("pref-theme", 'light');
+        } else {
+            document.body.classList.add('dark');
+            localStorage.setItem("pref-theme", 'dark');
+        }
+    })
+
+</script>
+</body>
+
+</html>

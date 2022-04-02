@@ -6,7 +6,25 @@
     <description>Recent content in Posts on XX の Blog</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>zh-cn</language>
-    <lastBuildDate>Sat, 12 Mar 2022 15:56:44 +0800</lastBuildDate><atom:link href="https://xxr0ss.github.io/post/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Sat, 02 Apr 2022 20:12:08 +0800</lastBuildDate><atom:link href="https://xxr0ss.github.io/post/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Frida检测手段探究</title>
+      <link>https://xxr0ss.github.io/post/frida_detection/</link>
+      <pubDate>Sat, 02 Apr 2022 20:12:08 +0800</pubDate>
+      
+      <guid>https://xxr0ss.github.io/post/frida_detection/</guid>
+      <description>NOTICE: 本文提到的手段的代码实现在我的代码库xxr0ss/AntiFrida中， 不详细之处，请参照代码实现。
+来看看Frida工作的过程 OSDC 2015: The engineering behind the reverse engineering (PDF · Recording)
+概括来说就是，frida-agent是frida实现注入时，注入进程的模块，和frida-server通信完成frida的功能。
+在frida注入模式不可用时，我们还可以通过frida-gadget来完成插桩工作，有如下几种实现方式：
+  修改程序源码使其加载frida-agent
+  Patch程序或程序加载的库
+  使用一些动态链接的特性，比如LD_PRELOAD和DYLD_INSERT_LIBRARIES
+  检查frida-server默认端口占用 创建socket去连接指定端口（27042），如果frida-server在默认端口下运行，则可以连接成功。
+缺陷是frida-server可以直接指定端口
+frida-server -l 127.0.0.1:2333 Native代码 extern &amp;#34;C&amp;#34; JNIEXPORT jboolean JNICALL Java_com_xxr0ss_antifrida_utils_AntiFridaUtil_checkFridaByPort(JNIEnv *env, jobject thiz,  jint port) {  struct sockaddr_in sa{};  sa.sin_family = AF_INET;  sa.sin_port = htons(port);  inet_aton(&amp;#34;127.0.0.1&amp;#34;, &amp;amp;sa.sin_addr);  int sock = socket(AF_INET, SOCK_STREAM, 0);   if (connect(sock, (struct sockaddr *) &amp;amp;sa, sizeof(sa)) == 0) {  // we can connect to frida-server when it&amp;#39;s running  close(sock);  return JNI_TRUE;  }   return JNI_FALSE; } 注意 需要在AndroidManifest.</description>
+    </item>
+    
     <item>
       <title>Import_so_to_existing_android_project</title>
       <link>https://xxr0ss.github.io/post/import_so_to_existing_android_project/</link>
