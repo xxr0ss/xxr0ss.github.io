@@ -152,18 +152,18 @@ frida-server -l 127.0.0.1:2333 Native代码 extern &#34;C&#34; JNIEXPORT jboolea
 
 <article class="post-entry"> 
   <header class="entry-header">
-    <h2>Import_so_to_existing_android_project
+    <h2>引入so文件到现有Android项目
     </h2>
   </header>
   <section class="entry-content">
-    <p>title: “引入so文件到现有Android项目” date: 2022-03-12T15:44:50&#43;08:00 ShowToc: true 这里介绍一种如下情况下，将so导入到Android项目的方法：
+    <p>这里介绍一种如下情况下，将so导入到Android项目的方法：
  仅提供了JNI接口的so 一个常规的Android项目，在Android Studio上，使用Gradle进行构建。  为了方便演示，我们直接在Android Studio新建一个Native工程叫testso，这个工程只是用来方便我们创建so的，编译出来的apk我们不需要，我们的目的是将apk中的libtestso.so提取出来，并假设我们只有so，将其导入到一个Android项目中。
 提供so Native代码 编写了一个究极简单的函数。
 #include &lt;jni.h&gt;#include &lt;string&gt; extern &#34;C&#34; JNIEXPORT jint JNICALL Java_com_xxr0ss_TestSo_addJNI(JNIEnv *env, jobject thiz, jint a, jint b) {  return a &#43; b; } 对应的kotlin代码 其实我是先创建的这个，然后Android Studio能提示addJNI不存在，方便地自动在cpp/native-lib.cpp里生成函数，避免我们写错JNI函数声明。
 package com.xxr0ss;  class TestSo {   external fun addJNI(a: Int, b: Int): Int   companion object {  init {  System.loadLibrary(&#34;testso&#34;)  }  } } 准备完毕 lib  ├── arm64-v8a  │ └── libtestso....</p>
   </section>
-  <footer class="entry-footer"><span title='2022-03-12 15:56:44 +0800 CST'>March 12, 2022</span></footer>
-  <a class="entry-link" aria-label="post link to Import_so_to_existing_android_project" href="https://xxr0ss.github.io/post/import_so_to_existing_android_project/"></a>
+  <footer class="entry-footer"><span title='2022-03-12 15:44:50 +0800 CST'>March 12, 2022</span></footer>
+  <a class="entry-link" aria-label="post link to 引入so文件到现有Android项目" href="https://xxr0ss.github.io/post/import_so_to_existing_android_project/"></a>
 </article>
 
 <article class="post-entry"> 
