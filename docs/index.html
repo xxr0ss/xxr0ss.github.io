@@ -2,7 +2,7 @@
 <html lang="en" dir="auto">
 
 <head>
-	<meta name="generator" content="Hugo 0.93.3" /><meta charset="utf-8">
+	<meta name="generator" content="Hugo 0.101.0" /><meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <meta name="robots" content="index, follow">
@@ -129,7 +129,7 @@
         <h1>Hi there</h1>
     </header>
     <section class="entry-content">
-        <p>大三 | 信息安全 | 逆向</p>
+        <p>信息安全 | 逆向</p>
     </section>
     <footer class="entry-footer">
         <div class="social-icons">
@@ -148,12 +148,12 @@
 来看看Frida工作的过程 OSDC 2015: The engineering behind the reverse engineering (PDF · Recording)
 概括来说就是，frida-agent是frida实现注入时，注入进程的模块，和frida-server通信完成frida的功能。
 在frida注入模式不可用时，我们还可以通过frida-gadget来完成插桩工作，有如下几种实现方式：
-  修改程序源码使其加载frida-agent
-  Patch程序或程序加载的库
-  使用一些动态链接的特性，比如LD_PRELOAD和DYLD_INSERT_LIBRARIES
-  检查frida-server默认端口占用 创建socket去连接指定端口（27042），如果frida-server在默认端口下运行，则可以连接成功。
+修改程序源码使其加载frida-agent
+Patch程序或程序加载的库
+使用一些动态链接的特性，比如LD_PRELOAD和DYLD_INSERT_LIBRARIES
+检查frida-server默认端口占用 创建socket去连接指定端口（27042），如果frida-server在默认端口下运行，则可以连接成功。
 缺陷是frida-server可以直接指定端口
-frida-server -l 127.0.0.1:2333 Native代码 extern &#34;C&#34; JNIEXPORT jboolean JNICALL Java_com_xxr0ss_antifrida_utils_AntiFridaUtil_checkFridaByPort(JNIEnv *env, jobject thiz,  jint port) {  struct sockaddr_in sa{};  sa.sin_family = AF_INET;  sa.sin_port = htons(port);  inet_aton(&#34;127.0.0.1&#34;, &amp;sa.sin_addr);  int sock = socket(AF_INET, SOCK_STREAM, 0);   if (connect(sock, (struct sockaddr *) &amp;sa, sizeof(sa)) == 0) {  // we can connect to frida-server when it&#39;s running  close(sock);  return JNI_TRUE;  }   return JNI_FALSE; } 注意 需要在AndroidManifest....</p>
+frida-server -l 127.0.0.1:2333 Native代码 extern &#34;C&#34; JNIEXPORT jboolean JNICALL Java_com_xxr0ss_antifrida_utils_AntiFridaUtil_checkFridaByPort(JNIEnv *env, jobject thiz, jint port) { struct sockaddr_in sa{}; sa.sin_family = AF_INET; sa.sin_port = htons(port); inet_aton(&#34;127.0.0.1&#34;, &amp;sa.sin_addr); int sock = socket(AF_INET, SOCK_STREAM, 0); if (connect(sock, (struct sockaddr *) &amp;sa, sizeof(sa)) == 0) { // we can connect to frida-server when it&#39;s running close(sock); return JNI_TRUE; } return JNI_FALSE; } 注意 需要在AndroidManifest....</p>
   </section>
   <footer class="entry-footer"><span title='2022-04-02 20:12:08 +0800 CST'>April 2, 2022</span></footer>
   <a class="entry-link" aria-label="post link to Frida检测手段探究" href="https://xxr0ss.github.io/post/frida_detection/"></a>
@@ -166,10 +166,10 @@ frida-server -l 127.0.0.1:2333 Native代码 extern &#34;C&#34; JNIEXPORT jboolea
   </header>
   <section class="entry-content">
     <p>这里介绍一种如下情况下，将so导入到Android项目的方法：
- 仅提供了JNI接口的so 一个常规的Android项目，在Android Studio上，使用Gradle进行构建。  为了方便演示，我们直接在Android Studio新建一个Native工程叫testso，这个工程只是用来方便我们创建so的，编译出来的apk我们不需要，我们的目的是将apk中的libtestso.so提取出来，并假设我们只有so，将其导入到一个Android项目中。
+仅提供了JNI接口的so 一个常规的Android项目，在Android Studio上，使用Gradle进行构建。 为了方便演示，我们直接在Android Studio新建一个Native工程叫testso，这个工程只是用来方便我们创建so的，编译出来的apk我们不需要，我们的目的是将apk中的libtestso.so提取出来，并假设我们只有so，将其导入到一个Android项目中。
 提供so Native代码 编写了一个究极简单的函数。
-#include &lt;jni.h&gt;#include &lt;string&gt; extern &#34;C&#34; JNIEXPORT jint JNICALL Java_com_xxr0ss_TestSo_addJNI(JNIEnv *env, jobject thiz, jint a, jint b) {  return a &#43; b; } 对应的kotlin代码 其实我是先创建的这个，然后Android Studio能提示addJNI不存在，方便地自动在cpp/native-lib.cpp里生成函数，避免我们写错JNI函数声明。
-package com.xxr0ss;  class TestSo {   external fun addJNI(a: Int, b: Int): Int   companion object {  init {  System.loadLibrary(&#34;testso&#34;)  }  } } 准备完毕 lib  ├── arm64-v8a  │ └── libtestso....</p>
+#include &lt;jni.h&gt; #include &lt;string&gt; extern &#34;C&#34; JNIEXPORT jint JNICALL Java_com_xxr0ss_TestSo_addJNI(JNIEnv *env, jobject thiz, jint a, jint b) { return a &#43; b; } 对应的kotlin代码 其实我是先创建的这个，然后Android Studio能提示addJNI不存在，方便地自动在cpp/native-lib.cpp里生成函数，避免我们写错JNI函数声明。
+package com.xxr0ss; class TestSo { external fun addJNI(a: Int, b: Int): Int companion object { init { System.loadLibrary(&#34;testso&#34;) } } } 准备完毕 lib ├── arm64-v8a │ └── libtestso.so ├── armeabi-v7a │ └── libtestso.so ├── x86 │ └── libtestso....</p>
   </section>
   <footer class="entry-footer"><span title='2022-03-12 15:44:50 +0800 CST'>March 12, 2022</span></footer>
   <a class="entry-link" aria-label="post link to 引入so文件到现有Android项目" href="https://xxr0ss.github.io/post/import_so_to_existing_android_project/"></a>
@@ -196,14 +196,16 @@ Object-specific allocators _____ ______ ______ ________ [ int ] [ dict ] [ list 
     </h2>
   </header>
   <section class="entry-content">
-    <p>Cython篇  Python逆向主要难度还是在pyd（或者说so）上，以下为Cython生成的可供python导入的模块的逆向手段。
+    <p>Cython篇 Python逆向主要难度还是在pyd（或者说so）上，以下为Cython生成的可供python导入的模块的逆向手段。
 Cython也能产生exe，使用—embed命令行参数，然后正常添加好include目录和libs目录和依赖就可以直接编译了。
 开发的角度 项目创建和构建 在Windows上，直接通过setup.py的处理方法，编译出来的pyd没有符号文件产生，而且似乎也没有办法通过设置命令行，设置某些参数之类的方式来生成符号文件。我目前探索比较方便的方案是：
 创建VS的动态链接库工程，项目属性里做如下工作：
- （可选）可以在pre event里调用cython生成.c   需要在项目依赖的include目录和lib目录，用到的lib依赖，三个地方都加上python的部分   指定生成和本机python环境一样的pyd，比如都是x64的 修改生成目标的dll后缀设置为pyd  然后项目文件的管理：
- 不要把.py放项目的Source Files（源文件）filter下，不然会被当成项目源码干扰编译过程，可以创建一个单独的filter来放.py文件，比如我现在的管理方式：  逆向的角度  尽可能恢复符号，借用别的有符号的pyd，用bindiff进行恢复 导出一部分结构体  __Pyx_AddTraceback对逆向有较大辅助作用
- 确认下还有哪些符号有利于逆向分析  代码逆向定位 都在slots里，所以是挨着的，确定了一个就能确定另一个。函数实现也是挨着的。
- __pyx_pymod_create __pyx_pymod_exec_modulename  static PyModuleDef_Slot __pyx_moduledef_slots[] = {  {Py_mod_create, (void*)},  {Py_mod_exec, (void*)__pyx_pymod_exec_demo},  {0, NULL} };   // 在python的moduleobject.h里有定义 typedef struct PyModuleDef_Slot{  int slot;  void *value; } PyModuleDef_Slot; pyx和py的区别 其实就算不使用cython的语法特性，同样的代码放在py和pyx里，cython编译出来的结果并不相同。...</p>
+（可选）可以在pre event里调用cython生成.c 需要在项目依赖的include目录和lib目录，用到的lib依赖，三个地方都加上python的部分 指定生成和本机python环境一样的pyd，比如都是x64的 修改生成目标的dll后缀设置为pyd 然后项目文件的管理：
+不要把.py放项目的Source Files（源文件）filter下，不然会被当成项目源码干扰编译过程，可以创建一个单独的filter来放.py文件，比如我现在的管理方式： 逆向的角度 尽可能恢复符号，借用别的有符号的pyd，用bindiff进行恢复 导出一部分结构体 __Pyx_AddTraceback对逆向有较大辅助作用
+确认下还有哪些符号有利于逆向分析 代码逆向定位 都在slots里，所以是挨着的，确定了一个就能确定另一个。函数实现也是挨着的。
+__pyx_pymod_create __pyx_pymod_exec_modulename static PyModuleDef_Slot __pyx_moduledef_slots[] = { {Py_mod_create, (void*)}, {Py_mod_exec, (void*)__pyx_pymod_exec_demo}, {0, NULL} }; // 在python的moduleobject.h里有定义 typedef struct PyModuleDef_Slot{ int slot; void *value; } PyModuleDef_Slot; pyx和py的区别 其实就算不使用cython的语法特性，同样的代码放在py和pyx里，cython编译出来的结果并不相同。
+__pyx_pymod_exec_modulename中的区别 自定义函数的区别 /*--- Execution code ---*/ 其中自定义的函数部分，py生成的是
+__pyx_t_1 = __Pyx_CyFunction_New(&amp;__pyx_mdef_4util_1func, 0, __pyx_n_s_func, NULL, __pyx_n_s_util, __pyx_d, ((PyObject *)__pyx_codeobj__2)); if (unlikely(!__pyx_t_1)) __PYX_ERR(0, 1, __pyx_L1_error) __Pyx_GOTREF(__pyx_t_1); if (PyDict_SetItem(__pyx_d, __pyx_n_s_func, __pyx_t_1) &lt; 0) __PYX_ERR(0, 1, __pyx_L1_error) __Pyx_DECREF(__pyx_t_1); __pyx_t_1 = 0; pyx生成的是...</p>
   </section>
   <footer class="entry-footer"><span title='2021-08-22 08:57:42 +0800 CST'>August 22, 2021</span></footer>
   <a class="entry-link" aria-label="post link to Python逆向初体验" href="https://xxr0ss.github.io/post/reverse_python/"></a>
@@ -235,11 +237,14 @@ Challenge 1: Store 1337 at pointer 0x1337. Challenge 2: Make the &#39;uname&#39;
   <section class="entry-content">
     <p>Shiboken是Qt For Python实现的根基，它分析C&#43;&#43;代码抽取其中的信息，产生CPython代码，可以直接编译为python的模块，使得C/C&#43;&#43;代码能用在Python里面去。
 本文将介绍在Windows平台上，使用Shiboken6封装C&#43;&#43;的具体操作，以及刚开始接触Shiboken可能碰到的一些坑。
-Shiboken的基本使用逻辑  把该C&#43;&#43;项目编译成二进制文件（如Windows下是dll） 将现有需要导出给Python的C&#43;&#43;类声明在一个xml里，这个xml叫typesystem 利用这个xml和C&#43;&#43;项目的头文件，生成绑定代码，其中包含模块名_module_wrapper和导出要用的头文件（已在typesystem中定义好了）的类_wrapper 编译生成的wrapper代码，与先前生成的dll链接，生成.pyd（本质上是dll，可直接在python中import） 在Python中直接导入模块使用  下面介绍
+Shiboken的基本使用逻辑 把该C&#43;&#43;项目编译成二进制文件（如Windows下是dll） 将现有需要导出给Python的C&#43;&#43;类声明在一个xml里，这个xml叫typesystem 利用这个xml和C&#43;&#43;项目的头文件，生成绑定代码，其中包含模块名_module_wrapper和导出要用的头文件（已在typesystem中定义好了）的类_wrapper 编译生成的wrapper代码，与先前生成的dll链接，生成.pyd（本质上是dll，可直接在python中import） 在Python中直接导入模块使用 下面介绍
 具体操作细节 环境准备 按照PySide6安装目录下官方提供的示例examples/samplebindings（例如，在我机器上是：D:\Python\Python39\Lib\site-packages\PySide6\examples\samplebinding)中的使用习惯，我们
- 使用bindings.h保存要封装的C&#43;&#43;类的头文件，用binidngs.xml保存typesystem信息。 使用CMake和NMake进行项目构建编译等自动控制，请确保你电脑上安装了VS2019。  由于要使用nmake，所以需要使用x64 Native Tools Command Prompt for VS 2019，这个是随VS2019安装自动安装的，本质上就是执行了一个bat，让你的cmd环境变量里多了VS提供的一些开发工具（比如nmake    在这个示例的目录下，如你所见，官方提供了两个示例，一个是samplebindings，演示如何封装简单的C&#43;&#43;类；另一个是widgetbinding，演示如何封装Qt库，需要你机器上装了Qt开发环境。 本文使用我自己提供的一份示例代码，演示如何封装C&#43;&#43;类，算是对官方示例的对照和补充吧。可从我的GitHub仓库下载： shiboken6_demo
+使用bindings.h保存要封装的C&#43;&#43;类的头文件，用binidngs.xml保存typesystem信息。 使用CMake和NMake进行项目构建编译等自动控制，请确保你电脑上安装了VS2019。 由于要使用nmake，所以需要使用x64 Native Tools Command Prompt for VS 2019，这个是随VS2019安装自动安装的，本质上就是执行了一个bat，让你的cmd环境变量里多了VS提供的一些开发工具（比如nmake 在这个示例的目录下，如你所见，官方提供了两个示例，一个是samplebindings，演示如何封装简单的C&#43;&#43;类；另一个是widgetbinding，演示如何封装Qt库，需要你机器上装了Qt开发环境。 本文使用我自己提供的一份示例代码，演示如何封装C&#43;&#43;类，算是对官方示例的对照和补充吧。可从我的GitHub仓库下载： shiboken6_demo
 文件结构：
-shiboken_simple  ├── bindings  │ ├── bindings.h  │ ├── bindings.xml  │ ├── pyside_config.py  │ └── wrap_src_gen.py  ├── build  ├── CMakeLists.txt  └── math  ├── CMakeLists.txt  ├── mathematician.cpp  └── mathematician....</p>
+shiboken_simple ├── bindings │ ├── bindings.h │ ├── bindings.xml │ ├── pyside_config.py │ └── wrap_src_gen.py ├── build ├── CMakeLists.txt └── math ├── CMakeLists.txt ├── mathematician.cpp └── mathematician.h 顶层CMakeLists.txt（shiboken_simple/CMakeLists.txt）负责大部分工作：
+调用shiboken生成封装代码（wrapper）和编译封装代码 链接封装后的pyd模块和我们将C&#43;&#43;代码直接生成的dll 将pyd和相关依赖复制到（install）shiboken_simple目录下，可以直接编写python代码调用 math是我们的C&#43;&#43;项目，其中的CMakeLists.txt工作很简单，就是负责将C&#43;&#43;代码构建dll
+set(${cppmath_library}_sources ${CMAKE_CURRENT_SOURCE_DIR}/mathematician.cpp ) add_library(${cppmath_library} SHARED ${${cppmath_library}_sources}) add_compile_definitions(BINDINGS_BUILD) 其中的${cppmath_library}变量定义在顶层CMakeLists.txt
+C&#43;&#43;项目代码 很简单，功能也比较单一的一个C&#43;&#43;类，头文件mathematician.h定义：...</p>
   </section>
   <footer class="entry-footer"><span title='2021-03-15 16:06:53 +0800 CST'>March 15, 2021</span></footer>
   <a class="entry-link" aria-label="post link to 用Shiboken封装简单的C&#43;&#43;类，实现Python对C&#43;&#43;的调用" href="https://xxr0ss.github.io/post/wrap_cpp_with_shiboken_for_python/"></a>
@@ -255,11 +260,11 @@ shiboken_simple  ├── bindings  │ ├── bindings.h  │ ├── bin
 但如果，出于一些原因，我们非要通过qrc来实现呢，或者想要自定义这个按钮的绘制过程，要如何着手？答案是研究源码。 QTabWidget和QTabBar的文档里，我并没有看到提供了方便的函数用于实现我的这一想法。
 我本来是在使用PySide6时发现这个问题的，但是解决过程中，同时看了Qt的C&#43;&#43;实现部分和Python实现部分的源码，所以理论上无论你是用Python还是C&#43;&#43;在进行Qt开发，如果你碰到和我一样的问题，相信这篇文章能帮助到你。
 先说明两个类的关系，两个类都继承于QWidget，QTabWidget内部保存了一个QTabBar, 本身可以理解为组合了QTabBar和QStackedWidget，这一点源码中可以得到印证：
-class QTabWidgetPrivate : public QWidgetPrivate {  Q_DECLARE_PUBLIC(QTabWidget) public: 	// ...  QTabBar *tabs;  QStackedWidget *stack; 	// ... }; 由于上述关系，另外QTabWidget也提供public方法用于获取内部保存的QTabBar，所以后面就不提QTabWidget了，我们把关注点放在QTabBar上。
+class QTabWidgetPrivate : public QWidgetPrivate { Q_DECLARE_PUBLIC(QTabWidget) public: // ... QTabBar *tabs; QStackedWidget *stack; // ... }; 由于上述关系，另外QTabWidget也提供public方法用于获取内部保存的QTabBar，所以后面就不提QTabWidget了，我们把关注点放在QTabBar上。
 QTabBar可以设置指定index的是否启用关闭按钮，可以使用setTabButton()来设置按钮。所以我们源码从这些线索顺着找，我机子上源码位置是D:\Qt\6.0.1\Src\qtbase\src\widgets\widgets\qtabbar.cpp 源码里QTabBar::insertTab()，QTabBar::setTabsClosable()内部使用了setTabButton()。可以看到源码里还一个CloseButton类继承自QAbstractButton类。（这里不放源码了，篇幅有限）
 分析两处调用过程，共同点在于：
- setTabButton()使用了创建出来的CloseButton对象 CloseButton的ButtonPosition都来自QTabBar的 (ButtonPosition)style()-&gt;styleHint(QStyle::SH_TabBar_CloseButtonPosition, nullptr, this) 连接了CloseButton的clicked()信号和QTabBar的_q_closeTab()槽 第2点原因是，QTabBar可以设置关闭按钮位置，所以这里需要获取其位置。  既然有源码，我们照着改就行，我是PySide6进行开发，所以是进行C&#43;&#43;到Python的移植（我没有用别的命名，用的是和QTabBar里面一样的命名）：
-class CloseButton(QAbstractButton):  def __init__(self, parent: QWidget):  super(CloseButton, self).__init__(parent)  self.parent = parent  self.setFocusPolicy(Qt.NoFocus)  self.resize(self.sizeHint())  self.setEnabled(True)  self.clicked.connect(self.log_clicked)   @Slot()  def log_clicked(self):  print(&#39;Close Button clicked&#39;)   def sizeHint(self) -&gt; QSize:  self....</p>
+setTabButton()使用了创建出来的CloseButton对象 CloseButton的ButtonPosition都来自QTabBar的 (ButtonPosition)style()-&gt;styleHint(QStyle::SH_TabBar_CloseButtonPosition, nullptr, this) 连接了CloseButton的clicked()信号和QTabBar的_q_closeTab()槽 第2点原因是，QTabBar可以设置关闭按钮位置，所以这里需要获取其位置。 既然有源码，我们照着改就行，我是PySide6进行开发，所以是进行C&#43;&#43;到Python的移植（我没有用别的命名，用的是和QTabBar里面一样的命名）：
+class CloseButton(QAbstractButton): def __init__(self, parent: QWidget): super(CloseButton, self).__init__(parent) self.parent = parent self.setFocusPolicy(Qt.NoFocus) self.resize(self.sizeHint()) self.setEnabled(True) self.clicked.connect(self.log_clicked) @Slot() def log_clicked(self): print(&#39;Close Button clicked&#39;) def sizeHint(self) -&gt; QSize: self.ensurePolished() width = self.style().pixelMetric(QStyle.PM_TabCloseIndicatorWidth, None, self) height = self....</p>
   </section>
   <footer class="entry-footer"><span title='2021-02-19 10:53:46 +0800 CST'>February 19, 2021</span></footer>
   <a class="entry-link" aria-label="post link to QTabWidget/QTabBar的自定义关闭按钮实现 Python &amp; C&#43;&#43;" href="https://xxr0ss.github.io/post/qtabclosebutton_diy_python_cpp/"></a>
