@@ -7,7 +7,7 @@ publishDir = "docs"
 [params]
     [params.homeInfoParams]
         title = "Hi there"
-        Content = "大三 | 信息安全 | 逆向"
+        Content = "信息安全 | 逆向"
 
 [markup]
   [markup.tableOfContents]
